@@ -1,14 +1,34 @@
 # Walkies
 
-A Webapp with a Map showing all the walks if have done in the past (logged on garmin)
+A webapp that maps every walk and bike ride I've logged on Garmin, and turns the history into
+a set of stats about how much I move, when, and how that's changed over time.
 
 ## Features
 
-* Map:
-    * Blue: walk paths of my walks, when walk line is hovered show details of the walk (Date, Distance, Speed ("in Bewegung"), Avg. HR)
-    * Green: bike paths of my biking sessions, when the bike line is hovered show details (Date, Distance, Speed ("in Bewegung"), Avg. HR)
-* History of all logged activites in a table at the side, with reference to the map.
-* "Update" button, to fetch data from garmin connect
+* **Map**
+    * Blue paths for walks, purple for bike rides. Hovering a line (on the map or in the table)
+      shows its Date, Distance, Speed ("in Bewegung" — moving speed, excluding time stopped),
+      and Avg. HR, and lifts it above the rest in a lighter tint so it stands out among hundreds
+      of overlapping tracks.
+    * Filter by activity type (All / Walk / Bike) and date range (All time / last 30 / 90 days /
+      12 months).
+    * Heatmap mode swaps the individual paths for a density heatmap of where I've spent the most
+      time.
+* **History table**, in a sidebar next to the map, listing every logged activity with its date,
+  distance, moving time, speed, and average HR. Columns are sortable, and clicking a row pans the
+  map to that activity and highlights it (jumping to the Map tab if needed).
+* **Statistics tab**
+    * At-a-glance tiles: total activities, total distance, total time moving, current streak,
+      longest walk, longest bike ride, average heart rate.
+    * A GitHub-style calendar heatmap of daily activity.
+    * Weekly walking and cycling distance across the full logging history.
+    * Speed and heart-rate progression over time (walk vs. bike), so I can see whether I'm
+      actually getting faster — with GPS-glitch outliers (e.g. walking indoors) automatically
+      excluded from the weekly averages.
+    * Activity patterns by day of week and hour of day.
+* **"Update" button** pulls new activities from Garmin Connect, shows how long ago the last sync
+  ran (persisted across reloads), and surfaces Garmin login/sync errors clearly instead of a raw
+  error string.
 
 ## Architecture
 
