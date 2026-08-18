@@ -107,13 +107,16 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
   }, [withGps, typeFilter, dateRange]);
 
   // An explicit click on a table row should always be able to navigate to
-  // and highlight that activity, even if the map's own filters would
-  // otherwise hide it — the user's direct action overrides the toolbar.
+  // and highlight that activity, even if the date range would otherwise hide
+  // it — the user's direct action overrides that part of the toolbar. The
+  // type filter still wins, though: switching it away from the selected
+  // activity's type should hide that activity like any other.
   const displayed = useMemo(() => {
     if (!selectedId || filtered.some((a) => a.id === selectedId)) return filtered;
     const selected = withGps.find((a) => a.id === selectedId);
-    return selected ? [...filtered, selected] : filtered;
-  }, [filtered, selectedId, withGps]);
+    if (!selected || (typeFilter !== "all" && selected.type !== typeFilter)) return filtered;
+    return [...filtered, selected];
+  }, [filtered, selectedId, withGps, typeFilter]);
 
   return (
     <div className="map-page">
