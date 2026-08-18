@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+.DS_Store
+*.log
+npm-debug.log*
+
+# Supabase local dev
+supabase/.branches
+supabase/.temp

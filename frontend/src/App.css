@@ -1,0 +1,444 @@
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+.sidebar {
+  width: 380px;
+  flex-shrink: 0;
+  /* Without this, a flex item won't shrink below its content's intrinsic
+     width — the table (white-space: nowrap columns) would silently push the
+     sidebar wider than 380px instead of scrolling inside it. */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e5e4e7;
+  background: #fff;
+}
+
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #e5e4e7;
+  gap: 12px;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+.sidebar__header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+/* The table's own scroll region — kept separate from the header so a wide
+   table scrolling horizontally can never slide under/behind the header
+   (they used to share one sticky-top scroll container and collide). */
+.sidebar__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.content-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e5e4e7;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.tab {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: #f4f3ec;
+}
+
+.tab--active {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.content-pane__body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+}
+
+.map-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.map-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e5e4e7;
+  background: #fff;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.map-toolbar__group {
+  display: flex;
+  gap: 4px;
+}
+
+.map-filter-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e4e7;
+  background: #fff;
+  font-size: 12px;
+  color: #52514e;
+  cursor: pointer;
+}
+
+.map-filter-btn:hover {
+  background: #f4f3ec;
+}
+
+.map-filter-btn--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.map-toolbar__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #52514e;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.map-canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.stats-view {
+  padding: 20px;
+}
+
+.stat-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-tile {
+  background: #fff;
+  border: 1px solid #e5e4e7;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.stat-tile__value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.stat-tile__label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.chart-card {
+  background: #fff;
+  border: 1px solid #e5e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.chart-card--wide {
+  grid-column: 1 / -1;
+}
+
+.chart-card__subtitle {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: -8px 0 12px;
+}
+
+.chart-card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 12px;
+}
+
+.bar-chart {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.bar-chart__tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: #111827;
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transform: translateY(-100%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 10;
+}
+
+.bar-chart__tooltip strong {
+  font-size: 13px;
+}
+
+.bar-chart__tooltip span {
+  color: #d1d5db;
+}
+
+.line-chart {
+  position: relative;
+  width: 100%;
+}
+
+.line-chart__legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 6px;
+  padding-left: 40px;
+}
+
+.line-chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #52514e;
+}
+
+.line-key {
+  flex-shrink: 0;
+}
+
+.line-chart__tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: #111827;
+  color: #fff;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.line-chart__tooltip-label {
+  color: #9ca3af;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.line-chart__tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.line-chart__tooltip-row strong {
+  font-size: 13px;
+}
+
+.line-chart__tooltip-row span {
+  color: #d1d5db;
+}
+
+.calendar-heatmap {
+  position: relative;
+  width: 100%;
+}
+
+.calendar-heatmap__legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.calendar-heatmap__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.calendar-heatmap__tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: #111827;
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transform: translateY(-100%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 10;
+}
+
+.calendar-heatmap__tooltip strong {
+  font-size: 13px;
+}
+
+.calendar-heatmap__tooltip span {
+  color: #d1d5db;
+}
+
+.update-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-control button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-control button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.update-status {
+  font-size: 12px;
+  color: #6b7280;
+  max-width: 140px;
+  line-height: 1.3;
+}
+
+.error-banner {
+  padding: 12px 16px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.empty-state {
+  padding: 24px 16px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.activity-table th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e4e7;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.activity-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.activity-table th.sortable:hover {
+  color: #2563eb;
+}
+
+.sort-arrow {
+  font-size: 9px;
+}
+
+.activity-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f0f3;
+  white-space: nowrap;
+}
+
+.activity-table tbody tr {
+  cursor: pointer;
+}
+
+.activity-table tr.hovered,
+.activity-table tr:hover {
+  background: #eff6ff;
+}
+
+.activity-table tr.selected {
+  background: #dbeafe;
+}
+
+.type-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.type-dot--walk {
+  background: #2563eb;
+}
+
+.type-dot--bike {
+  background: #9333ea;
+}
