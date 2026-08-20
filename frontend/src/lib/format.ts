@@ -5,6 +5,21 @@ export function formatDate(iso: string): string {
   });
 }
 
+// For the activity list, where a full "Aug 20, 2026, 2:01 AM" is wide enough
+// to push the last two columns out of the sidebar. The year is dropped when
+// it's the current one — in a log that's read newest-first it's noise on
+// nearly every row, and it comes back automatically for older entries.
+export function formatDateCompact(iso: string): string {
+  const date = new Date(iso);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  const day = date.toLocaleDateString(
+    undefined,
+    sameYear ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "2-digit" },
+  );
+  const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${day}, ${time}`;
+}
+
 export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(2)} km`;
 }
@@ -57,4 +72,21 @@ export function formatRelativeTime(iso: string): string {
   const days = Math.round(hours / 24);
   if (days < 7) return `${days}d ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Bare figures for the activity list, where the unit is carried once in the
+// column header instead of being repeated on every row. Down a column of
+// forty entries, "km" forty times is noise, not information.
+export function formatKmValue(meters: number): string {
+  return (meters / 1000).toFixed(2);
+}
+
+export function formatKmhValue(metersPerSecond: number | null): string {
+  if (metersPerSecond === null) return "—";
+  return (metersPerSecond * 3.6).toFixed(1);
+}
+
+export function formatBpmValue(bpm: number | null): string {
+  if (bpm === null) return "—";
+  return String(Math.round(bpm));
 }

@@ -121,22 +121,26 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
   return (
     <div className="map-page">
       <div className="map-toolbar">
-        <div className="map-toolbar__group">
+        <div className="segmented" role="group" aria-label="Activity type">
           {TYPE_FILTER_OPTIONS.map(({ value, label }) => (
             <button
               key={value}
-              className={typeFilter === value ? "map-filter-btn map-filter-btn--active" : "map-filter-btn"}
+              type="button"
+              aria-pressed={typeFilter === value}
+              className={typeFilter === value ? "segmented__option segmented__option--active" : "segmented__option"}
               onClick={() => setTypeFilter(value)}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="map-toolbar__group">
+        <div className="segmented" role="group" aria-label="Date range">
           {DATE_RANGE_OPTIONS.map((value) => (
             <button
               key={value}
-              className={dateRange === value ? "map-filter-btn map-filter-btn--active" : "map-filter-btn"}
+              type="button"
+              aria-pressed={dateRange === value}
+              className={dateRange === value ? "segmented__option segmented__option--active" : "segmented__option"}
               onClick={() => setDateRange(value)}
             >
               {DATE_RANGE_LABELS[value]}
@@ -150,9 +154,15 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
       </div>
       <div className="map-canvas">
         <MapContainer center={[51.1657, 10.4515]} zoom={6} style={{ height: "100%", width: "100%" }}>
+          {/* Carto's Voyager basemap rather than standard OSM tiles: it keeps
+              paths, parks and water legible but at a fraction of the
+              saturation, so the vermilion and teal traces are the brightest
+              thing on the map instead of competing with the roads. */}
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            subdomains="abcd"
+            maxZoom={20}
           />
           <FitBounds activities={displayed} />
           <FlyToSelected activities={displayed} selectedId={selectedId} />

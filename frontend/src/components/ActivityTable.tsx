@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import type { Activity } from "../types";
-import { formatDate, formatDistance, formatDuration, formatSpeed, formatHr, movingSpeedMps } from "../lib/format";
+import {
+  formatBpmValue,
+  formatDateCompact,
+  formatDuration,
+  formatKmValue,
+  formatKmhValue,
+  movingSpeedMps,
+} from "../lib/format";
+import { RouteGlyph } from "./RouteGlyph";
 
 const TYPE_LABEL: Record<Activity["type"], string> = {
   walk: "Walk",
@@ -10,13 +18,13 @@ const TYPE_LABEL: Record<Activity["type"], string> = {
 type SortColumn = "type" | "date" | "distance" | "movingTime" | "speed" | "hr";
 type SortDirection = "asc" | "desc";
 
-const COLUMNS: { key: SortColumn; label: string }[] = [
-  { key: "type", label: "Type" },
+const COLUMNS: { key: SortColumn; label: string; unit?: string }[] = [
+  { key: "type", label: "Route" },
   { key: "date", label: "Date" },
-  { key: "distance", label: "Distance" },
-  { key: "movingTime", label: "Moving Time" },
-  { key: "speed", label: "Speed" },
-  { key: "hr", label: "Avg HR" },
+  { key: "distance", label: "Distance", unit: "km" },
+  { key: "movingTime", label: "Moving" },
+  { key: "speed", label: "Speed", unit: "km/h" },
+  { key: "hr", label: "Avg HR", unit: "bpm" },
 ];
 
 // A new column defaults to the ordering that puts the "interesting" end
@@ -71,7 +79,9 @@ export function ActivityTable({ activities, hoveredId, onHover, selectedId, onSe
   }, [activities, sortColumn, sortDirection]);
 
   if (activities.length === 0) {
-    return <p className="empty-state">No activities yet. Click "Update" to sync from Garmin Connect.</p>;
+    return (
+      <p className="empty-state">Nothing logged yet. Sync to pull your walks and rides from Garmin Connect.</p>
+    );
   }
 
   function handleHeaderClick(column: SortColumn) {
@@ -87,12 +97,26 @@ export function ActivityTable({ activities, hoveredId, onHover, selectedId, onSe
     <table className="activity-table">
       <thead>
         <tr>
-          {COLUMNS.map(({ key, label }) => (
-            <th key={key} onClick={() => handleHeaderClick(key)} className="sortable">
-              {label}
-              {sortColumn === key && <span className="sort-arrow">{sortDirection === "asc" ? " ▲" : " ▼"}</span>}
-            </th>
-          ))}
+          {COLUMNS.map(({ key, label, unit }) => {
+            const isSorted = sortColumn === key;
+            return (
+              <th
+                key={key}
+                scope="col"
+                // aria-sort is what tells a screen reader which column the list
+                // is ordered by; the arrow glyph alone says nothing.
+                aria-sort={isSorted ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+              >
+                <button type="button" className="activity-table__sort" onClick={() => handleHeaderClick(key)}>
+                  <span className="activity-table__sort-label">
+                    {label}
+                    {isSorted && <span className="sort-arrow">{sortDirection === "asc" ? "▲" : "▼"}</span>}
+                  </span>
+                  {unit && <span className="activity-table__unit">{unit}</span>}
+                </button>
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -112,14 +136,16 @@ export function ActivityTable({ activities, hoveredId, onHover, selectedId, onSe
               onClick={() => onSelect(activity.id)}
             >
               <td>
-                <span className={`type-dot type-dot--${activity.type}`} />
-                {TYPE_LABEL[activity.type]}
+                <span className="activity-table__route">
+                  <RouteGlyph points={activity.points} kind={activity.type} />
+                  {TYPE_LABEL[activity.type]}
+                </span>
               </td>
-              <td>{formatDate(activity.start_time)}</td>
-              <td>{formatDistance(activity.distance_m)}</td>
-              <td>{formatDuration(activity.moving_duration_s)}</td>
-              <td>{formatSpeed(movingSpeedMps(activity))}</td>
-              <td>{formatHr(activity.avg_hr)}</td>
+              <td>{formatDateCompact(activity.start_time)}</td>
+              <td className="activity-table__num">{formatKmValue(activity.distance_m)}</td>
+              <td className="activity-table__num">{formatDuration(activity.moving_duration_s)}</td>
+              <td className="activity-table__num">{formatKmhValue(movingSpeedMps(activity))}</td>
+              <td className="activity-table__num">{formatBpmValue(activity.avg_hr)}</td>
             </tr>
           );
         })}

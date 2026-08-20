@@ -1,36 +1,73 @@
+/* ── Shell ───────────────────────────────────────────────────────────────── */
+
 .app {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  /* dvh, not vh: on mobile Safari the address bar would otherwise push the
+     bottom of the layout below the fold permanently. */
+  height: 100dvh;
+  width: 100%;
+  background: var(--paper);
 }
 
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
 .sidebar {
-  width: 380px;
+  /* Sized to the activity list's natural width, so all six columns are
+     visible without horizontal scrolling. */
+  width: 460px;
   flex-shrink: 0;
   /* Without this, a flex item won't shrink below its content's intrinsic
      width — the table (white-space: nowrap columns) would silently push the
-     sidebar wider than 380px instead of scrolling inside it. */
+     sidebar wider than its set width instead of scrolling inside it. */
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e5e4e7;
-  background: #fff;
+  border-right: 1px solid var(--rule);
+  background: var(--case);
 }
 
 .sidebar__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid #e5e4e7;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--rule);
   gap: 12px;
   flex-shrink: 0;
-  background: #fff;
 }
 
 .sidebar__header h1 {
-  font-size: 20px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  font-variation-settings: "wdth" 86, "opsz" 22;
+  letter-spacing: -0.02em;
+  /* Three words that wrap to two tight lines beside the Sync control; the
+     balanced break keeps the second line from being a single orphaned word. */
+  line-height: 1.08;
+  text-wrap: balance;
   margin: 0;
+  color: var(--ink);
+}
+
+/* A quiet count above the list, so the log always states its own size — the
+   one reading you want without opening the Statistics tab. */
+.sidebar__listbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--case-sunk);
+  flex-shrink: 0;
+}
+
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--graphite);
 }
 
 /* The table's own scroll region — kept separate from the header so a wide
@@ -42,40 +79,51 @@
   overflow: auto;
 }
 
+/* ── Content pane ────────────────────────────────────────────────────────── */
+
 .content-pane {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  background: var(--paper);
 }
 
+/* Primary view switch: an underlined tab strip. Deliberately a different
+   device from the segmented filters below it, so the two levels of control
+   never read as the same kind of thing. */
 .tabs {
   display: flex;
-  gap: 4px;
-  padding: 8px 16px;
-  border-bottom: 1px solid #e5e4e7;
-  background: #fff;
+  gap: 22px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--case);
   flex-shrink: 0;
 }
 
 .tab {
-  padding: 6px 14px;
+  padding: 15px 0 13px;
   border: none;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  border-radius: 6px;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--graphite);
   cursor: pointer;
+  transition: color 120ms ease;
 }
 
 .tab:hover {
-  background: #f4f3ec;
+  color: var(--ink-2);
 }
 
+/* Chrome accents are ink, never vermilion or teal: those two hues mean
+   "walk" and "bike" everywhere in this app and are not spent on UI state. */
 .tab--active {
-  background: #eff6ff;
-  color: #2563eb;
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  font-weight: 600;
 }
 
 .content-pane__body {
@@ -84,6 +132,8 @@
   position: relative;
   overflow: auto;
 }
+
+/* ── Map ─────────────────────────────────────────────────────────────────── */
 
 .map-page {
   display: flex;
@@ -94,47 +144,69 @@
 .map-toolbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
-  border-bottom: 1px solid #e5e4e7;
-  background: #fff;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--case);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
-.map-toolbar__group {
-  display: flex;
-  gap: 4px;
+/* Segmented control, shared by the type and date-range filters. */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--case-sunk);
 }
 
-.map-filter-btn {
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid #e5e4e7;
-  background: #fff;
+.segmented__option {
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-family: var(--font-body);
   font-size: 12px;
-  color: #52514e;
+  font-weight: 500;
+  color: var(--graphite);
   cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
-.map-filter-btn:hover {
-  background: #f4f3ec;
+.segmented__option:hover {
+  color: var(--ink);
+  background: rgb(31 36 28 / 5%);
 }
 
-.map-filter-btn--active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+.segmented__option--active,
+.segmented__option--active:hover {
+  background: var(--ink);
+  color: var(--case);
+  font-weight: 600;
 }
 
 .map-toolbar__toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 12px;
-  color: #52514e;
+  font-weight: 500;
+  color: var(--ink-2);
   cursor: pointer;
   margin-left: auto;
+}
+
+.map-toolbar__toggle input {
+  accent-color: var(--ink);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
 }
 
 .map-canvas {
@@ -143,95 +215,166 @@
   position: relative;
 }
 
+/* Leaflet ships its own typography and a bright white chrome; pull both into
+   the palette so the map reads as part of the instrument, not a widget
+   dropped into it. */
+.leaflet-container {
+  font-family: var(--font-body);
+  background: var(--case-sunk);
+}
+
+.leaflet-tooltip {
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: var(--case);
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 7px 10px;
+  box-shadow: 0 4px 12px rgb(31 36 28 / 18%);
+}
+
+.leaflet-tooltip::before {
+  display: none;
+}
+
+.leaflet-bar a,
+.leaflet-control-attribution {
+  color: var(--ink-2);
+  background: var(--case);
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+
+.leaflet-bar a:hover {
+  background: var(--case-sunk);
+  color: var(--ink);
+}
+
+/* ── Statistics ──────────────────────────────────────────────────────────── */
+
 .stats-view {
   padding: 20px;
 }
 
+/* One panel of readings divided by hairlines, rather than a row of floating
+   cards. The dividers belong to the tiles rather than to a coloured grid gap,
+   so an odd tile count leaves the last row's empty space the same colour as
+   the panel instead of a bare slab of rule. */
+.stat-panel {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  background: var(--case);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+/* Fixed column counts rather than auto-fit: eight readings divide exactly by
+   four and by two, so the last row is always full and the hairline grid never
+   ends in a ragged half-row. */
 .stat-tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(4, 1fr);
+  /* Pulled up and left by a hairline so the first row's and first column's
+     own rules sit under the panel border and are clipped, rather than
+     doubling it. */
+  margin: -1px 0 0 -1px;
 }
 
 .stat-tile {
-  background: #fff;
-  border: 1px solid #e5e4e7;
-  border-radius: 10px;
-  padding: 14px 16px;
+  padding: 15px 16px 16px;
+  box-shadow:
+    inset 1px 0 0 var(--rule),
+    inset 0 1px 0 var(--rule);
 }
 
 .stat-tile__value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #111827;
-  line-height: 1.2;
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 700;
+  font-variation-settings: "wdth" 90, "opsz" 27;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.05;
 }
 
 .stat-tile__label {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--graphite);
+  margin-top: 7px;
 }
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 16px;
 }
 
 .chart-card {
-  background: #fff;
-  border: 1px solid #e5e4e7;
-  border-radius: 10px;
-  padding: 16px;
+  background: var(--case);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 16px 18px 18px;
+  min-width: 0;
 }
 
 .chart-card--wide {
   grid-column: 1 / -1;
 }
 
-.chart-card__subtitle {
-  font-size: 12px;
-  color: #9ca3af;
-  margin: -8px 0 12px;
+.chart-card h2 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  font-variation-settings: "wdth" 92, "opsz" 15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0 0 12px;
 }
 
-.chart-card h2 {
-  font-size: 14px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 12px;
+.chart-card__subtitle {
+  font-size: 12px;
+  color: var(--graphite);
+  margin: -9px 0 14px;
+}
+
+/* ── Chart internals ─────────────────────────────────────────────────────── */
+/* SVG presentation attributes can't take var(), so the charts carry classes
+   and take their colours from here. */
+
+.chart-gridline {
+  stroke: var(--rule-soft);
+  stroke-width: 1;
+}
+
+.chart-cursor {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.chart-axis-value {
+  fill: var(--graphite-2);
+  font-size: 9px;
+}
+
+.chart-axis-label {
+  fill: var(--graphite);
+  font-size: 9px;
+}
+
+.chart-point-halo {
+  fill: var(--case);
 }
 
 .bar-chart {
   position: relative;
   width: 100%;
   overflow-x: auto;
-}
-
-.bar-chart__tooltip {
-  position: absolute;
-  pointer-events: none;
-  background: #111827;
-  color: #fff;
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-  transform: translateY(-100%);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  z-index: 10;
-}
-
-.bar-chart__tooltip strong {
-  font-size: 13px;
-}
-
-.bar-chart__tooltip span {
-  color: #d1d5db;
 }
 
 .line-chart {
@@ -242,7 +385,7 @@
 .line-chart__legend {
   display: flex;
   gap: 16px;
-  margin-top: 6px;
+  margin-top: 8px;
   padding-left: 40px;
 }
 
@@ -251,44 +394,11 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #52514e;
+  color: var(--ink-2);
 }
 
 .line-key {
   flex-shrink: 0;
-}
-
-.line-chart__tooltip {
-  position: absolute;
-  pointer-events: none;
-  background: #111827;
-  color: #fff;
-  font-size: 12px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-  z-index: 10;
-}
-
-.line-chart__tooltip-label {
-  color: #9ca3af;
-  font-size: 11px;
-  margin-bottom: 4px;
-}
-
-.line-chart__tooltip-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.line-chart__tooltip-row strong {
-  font-size: 13px;
-}
-
-.line-chart__tooltip-row span {
-  color: #d1d5db;
 }
 
 .calendar-heatmap {
@@ -300,9 +410,9 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--graphite);
 }
 
 .calendar-heatmap__swatch {
@@ -311,107 +421,197 @@
   border-radius: 2px;
 }
 
-.calendar-heatmap__tooltip {
+/* One tooltip treatment across all three charts. */
+.chart-tooltip {
   position: absolute;
   pointer-events: none;
-  background: #111827;
-  color: #fff;
+  background: var(--ink);
+  color: var(--case);
   font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 6px;
+  line-height: 1.4;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
   white-space: nowrap;
-  transform: translateY(-100%);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   z-index: 10;
+  box-shadow: 0 4px 12px rgb(31 36 28 / 18%);
 }
 
-.calendar-heatmap__tooltip strong {
+.chart-tooltip--above {
+  transform: translateY(-100%);
+}
+
+.chart-tooltip strong {
+  font-weight: 600;
   font-size: 13px;
 }
 
-.calendar-heatmap__tooltip span {
-  color: #d1d5db;
+.chart-tooltip span {
+  color: var(--rule);
 }
+
+.chart-tooltip__label {
+  color: var(--graphite-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.chart-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+/* ── Sync control ────────────────────────────────────────────────────────── */
 
 .update-control {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 
 .update-control button {
-  padding: 8px 14px;
-  border-radius: 6px;
-  border: none;
-  background: #2563eb;
-  color: #fff;
+  padding: 7px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--case);
+  font-family: var(--font-body);
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.update-control button:hover:not(:disabled) {
+  background: #2f362b;
 }
 
 .update-control button:disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   cursor: default;
 }
 
 .update-status {
-  font-size: 12px;
-  color: #6b7280;
-  max-width: 140px;
-  line-height: 1.3;
+  font-size: 11px;
+  color: var(--graphite);
+  text-align: right;
+  max-width: 150px;
+  line-height: 1.35;
 }
 
+/* ── Banners and empty states ────────────────────────────────────────────── */
+
 .error-banner {
-  padding: 12px 16px;
-  background: #fef2f2;
-  color: #dc2626;
-  font-size: 14px;
-  line-height: 1.4;
+  margin: 0;
+  padding: 11px 16px;
+  background: var(--alert-wash);
+  border-bottom: 1px solid var(--rule);
+  box-shadow: inset 3px 0 0 var(--alert);
+  color: var(--alert);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.error-banner strong {
+  font-weight: 600;
 }
 
 .empty-state {
-  padding: 24px 16px;
-  color: #6b7280;
-  font-size: 14px;
+  padding: 28px 20px;
+  color: var(--graphite);
+  font-size: 13px;
+  max-width: 40ch;
+  line-height: 1.5;
 }
+
+/* ── Activity list ───────────────────────────────────────────────────────── */
 
 .activity-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 .activity-table th {
   position: sticky;
   top: 0;
-  background: #fff;
+  z-index: 1;
+  background: var(--case);
   text-align: left;
-  padding: 8px 12px;
-  border-bottom: 1px solid #e5e4e7;
-  color: #6b7280;
-  font-weight: 500;
+  /* Labels align along one line whether or not the column carries a unit
+     beneath it. */
+  vertical-align: top;
+  padding: 0;
+  border-bottom: 1px solid var(--rule);
   white-space: nowrap;
 }
 
-.activity-table th.sortable {
+.activity-table__sort {
+  width: 100%;
+  display: block;
+  padding: 7px 8px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--graphite);
+  text-align: left;
   cursor: pointer;
-  user-select: none;
+  transition: color 120ms ease;
 }
 
-.activity-table th.sortable:hover {
-  color: #2563eb;
+.activity-table__sort:hover {
+  color: var(--ink);
+}
+
+.activity-table__sort-label {
+  display: block;
+}
+
+/* The unit sits under its column label, once, instead of being repeated on
+   every row — an instrument's dial is labelled, its needle isn't. */
+.activity-table__unit {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--graphite-2);
+}
+
+/* Numeric columns right-align so magnitudes line up down the column. */
+.activity-table__num {
+  text-align: right;
+}
+
+.activity-table th:nth-child(n + 3) .activity-table__sort {
+  text-align: right;
+}
+
+.activity-table th[aria-sort]:not([aria-sort="none"]) .activity-table__sort {
+  color: var(--ink);
 }
 
 .sort-arrow {
-  font-size: 9px;
+  font-size: 8px;
+  margin-left: 3px;
+  vertical-align: 1px;
 }
 
 .activity-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f1f0f3;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--rule-soft);
   white-space: nowrap;
+  color: var(--ink-2);
 }
 
 .activity-table tbody tr {
@@ -419,26 +619,104 @@
 }
 
 .activity-table tr.hovered,
-.activity-table tr:hover {
-  background: #eff6ff;
+.activity-table tbody tr:hover {
+  background: var(--case-sunk);
 }
 
-.activity-table tr.selected {
-  background: #dbeafe;
+/* The selected row is marked with an ink rule down its leading edge rather
+   than a colour fill, so the row's own route glyph stays the only coloured
+   thing in it. */
+.activity-table tr.selected,
+.activity-table tr.selected:hover {
+  background: var(--case-sunk);
+  box-shadow: inset 3px 0 0 var(--ink);
 }
 
-.type-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
+.activity-table tr.selected td {
+  color: var(--ink);
+  font-weight: 500;
 }
 
-.type-dot--walk {
-  background: #2563eb;
+/* Type cell: the glyph carries the colour, the word carries the meaning for
+   anyone who can't use the colour. Together they're the row's identity, so
+   they share one cell instead of splitting into two columns. */
+.activity-table__route {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  font-weight: 500;
 }
 
-.type-dot--bike {
-  background: #9333ea;
+/* The signature: each row carries a miniature of its own GPS trace. */
+.route-glyph {
+  display: block;
+  overflow: visible;
+}
+
+.route-glyph--empty line {
+  stroke: var(--rule);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+/* ── Narrow screens ──────────────────────────────────────────────────────── */
+/* Below this, side-by-side leaves neither pane usable: the list stacks on top
+   at a capped height and the map takes the rest. */
+
+/* Between these two, a 460px sidebar would take nearly half the window; give
+   the map the space back and let the list scroll its last columns. */
+@media (max-width: 1200px) {
+  .sidebar {
+    width: 380px;
+  }
+}
+
+@media (max-width: 700px) {
+  .stat-tile-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: 45dvh;
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .content-pane {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .tabs {
+    padding: 0 16px;
+  }
+
+  .stats-view {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Three stacked rows of filters would leave the map barely taller than the
+     toolbar, so tighten the spacing and let the toggle pack in beside the
+     segments instead of being pushed onto its own line. */
+  .map-toolbar {
+    gap: 8px;
+    padding: 8px 16px;
+  }
+
+  .map-toolbar__toggle {
+    margin-left: 0;
+  }
+
+  .segmented__option {
+    padding: 4px 8px;
+  }
 }

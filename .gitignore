@@ -11,3 +11,6 @@ npm-debug.log*
 # Supabase local dev
 supabase/.branches
 supabase/.temp
+
+# Spotlight launcher logs
+.run/

@@ -1,19 +1,22 @@
 import { useRef, useState } from "react";
 import type { DayActivity } from "../lib/stats";
 import { formatDistance } from "../lib/format";
+import { CALENDAR_LEVEL_COLORS } from "../lib/colors";
+import { useElementWidth } from "../lib/useElementWidth";
 
 interface CalendarHeatmapProps {
   days: DayActivity[];
 }
 
-const CELL_SIZE = 11;
+// Cells grow to fill the card up to MAX_CELL, so a few months of history
+// doesn't leave two thirds of a full-width card empty, and shrink no further
+// than MIN_CELL once several years have accumulated.
+const MIN_CELL = 11;
+const MAX_CELL = 17;
 const CELL_GAP = 3;
 const ROW_LABEL_WIDTH = 28;
 const TOP_PADDING = 16;
-const STEP = CELL_SIZE + CELL_GAP;
 
-// Sequential, one hue, light -> dark — magnitude encoding, not identity.
-const LEVEL_COLORS = ["#eef1f5", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"];
 const ROW_LABELS: (string | null)[] = ["Mon", null, "Wed", null, "Fri", null, null];
 
 function buildWeeks(days: DayActivity[]): (DayActivity | null)[][] {
@@ -57,14 +60,20 @@ function levelFor(distanceM: number, thresholds: [number, number, number]): numb
 
 export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const availableWidth = useElementWidth(containerRef);
   const [hovered, setHovered] = useState<{ day: DayActivity; x: number; y: number } | null>(null);
 
   if (days.length === 0) return null;
 
   const weeks = buildWeeks(days);
   const thresholds = computeThresholds(days);
-  const width = ROW_LABEL_WIDTH + weeks.length * STEP;
-  const height = TOP_PADDING + 7 * STEP;
+  const cellSize =
+    availableWidth > 0 && weeks.length > 0
+      ? Math.min(MAX_CELL, Math.max(MIN_CELL, (availableWidth - ROW_LABEL_WIDTH) / weeks.length - CELL_GAP))
+      : MIN_CELL;
+  const step = cellSize + CELL_GAP;
+  const width = ROW_LABEL_WIDTH + weeks.length * step;
+  const height = TOP_PADDING + 7 * step;
 
   let lastMonth = -1;
 
@@ -79,13 +88,13 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
       <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="xMinYMin meet">
         {ROW_LABELS.map((label, row) =>
           label ? (
-            <text key={row} x={0} y={TOP_PADDING + row * STEP + CELL_SIZE - 2} fontSize={9} fill="#9ca3af">
+            <text className="chart-axis-value" key={row} x={0} y={TOP_PADDING + row * step + cellSize - 2}>
               {label}
             </text>
           ) : null,
         )}
         {weeks.map((week, col) => {
-          const x = ROW_LABEL_WIDTH + col * STEP;
+          const x = ROW_LABEL_WIDTH + col * step;
           const firstDay = week.find((d): d is DayActivity => d !== null);
           let monthLabel: string | null = null;
           if (firstDay) {
@@ -98,23 +107,23 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
           return (
             <g key={col}>
               {monthLabel && (
-                <text x={x} y={TOP_PADDING - 5} fontSize={9} fill="#9ca3af">
+                <text className="chart-axis-value" x={x} y={TOP_PADDING - 5}>
                   {monthLabel}
                 </text>
               )}
               {week.map((day, row) => {
                 if (!day) return null;
-                const y = TOP_PADDING + row * STEP;
+                const y = TOP_PADDING + row * step;
                 const level = levelFor(day.distanceM, thresholds);
                 return (
                   <rect
                     key={row}
                     x={x}
                     y={y}
-                    width={CELL_SIZE}
-                    height={CELL_SIZE}
+                    width={cellSize}
+                    height={cellSize}
                     rx={2}
-                    fill={LEVEL_COLORS[level]}
+                    fill={CALENDAR_LEVEL_COLORS[level]}
                     onMouseEnter={(e) => showTooltip(day, e)}
                   />
                 );
@@ -126,14 +135,14 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
 
       <div className="calendar-heatmap__legend">
         <span>Less</span>
-        {LEVEL_COLORS.map((color) => (
+        {CALENDAR_LEVEL_COLORS.map((color) => (
           <span key={color} className="calendar-heatmap__swatch" style={{ background: color }} />
         ))}
         <span>More</span>
       </div>
 
       {hovered && (
-        <div className="calendar-heatmap__tooltip" style={{ left: hovered.x + 12, top: hovered.y - 12 }}>
+        <div className="chart-tooltip chart-tooltip--above" style={{ left: hovered.x + 12, top: hovered.y - 12 }}>
           <strong>
             {hovered.day.count > 0
               ? `${formatDistance(hovered.day.distanceM)} · ${hovered.day.count} activit${hovered.day.count === 1 ? "y" : "ies"}`

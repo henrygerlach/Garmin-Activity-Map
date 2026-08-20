@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { SeriesPoint } from "../lib/stats";
+import { useElementWidth } from "../lib/useElementWidth";
 
 export interface LineSeries {
   name: string;
@@ -19,7 +20,8 @@ const PADDING_LEFT = 40;
 const PADDING_TOP = 14;
 const PADDING_BOTTOM = 22;
 const PADDING_RIGHT = 16;
-const SLOT_WIDTH = 34;
+const MIN_SLOT_WIDTH = 22;
+const FALLBACK_SLOT_WIDTH = 34;
 const GRID_STEPS = 4;
 
 function niceAxisBounds(rawMin: number, rawMax: number): { min: number; max: number } {
@@ -55,9 +57,14 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const availableWidth = useElementWidth(containerRef);
   const pointCount = series[0]?.data.length ?? 0;
   const labels = series[0]?.data.map((d) => d.label) ?? [];
-  const plotWidth = pointCount * SLOT_WIDTH;
+  const slotWidth =
+    availableWidth > 0 && pointCount > 0
+      ? Math.max(MIN_SLOT_WIDTH, (availableWidth - PADDING_LEFT - PADDING_RIGHT) / pointCount)
+      : FALLBACK_SLOT_WIDTH;
+  const plotWidth = pointCount * slotWidth;
   const chartWidth = PADDING_LEFT + plotWidth + PADDING_RIGHT;
   const plotHeight = height - PADDING_TOP - PADDING_BOTTOM;
 
@@ -68,7 +75,7 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
   );
 
   function xFor(i: number): number {
-    return PADDING_LEFT + i * SLOT_WIDTH + SLOT_WIDTH / 2;
+    return PADDING_LEFT + i * slotWidth + slotWidth / 2;
   }
   function yFor(value: number): number {
     return PADDING_TOP + plotHeight - ((value - axisMin) / (axisMax - axisMin)) * plotHeight;
@@ -111,7 +118,7 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
     // position as the two scales diverge.
     const scaleX = chartWidth / rect.width;
     const xInViewBox = x * scaleX;
-    const rawIndex = Math.round((xInViewBox - PADDING_LEFT - SLOT_WIDTH / 2) / SLOT_WIDTH);
+    const rawIndex = Math.round((xInViewBox - PADDING_LEFT - slotWidth / 2) / slotWidth);
     setHoverIndex(Math.min(Math.max(rawIndex, 0), pointCount - 1));
   }
 
@@ -127,8 +134,8 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
           const y = yFor(value);
           return (
             <g key={i}>
-              <line x1={PADDING_LEFT} x2={chartWidth - PADDING_RIGHT} y1={y} y2={y} stroke="#e5e4e7" strokeWidth={1} />
-              <text x={PADDING_LEFT - 8} y={y + 3} fontSize={9} fill="#9ca3af" textAnchor="end">
+              <line className="chart-gridline" x1={PADDING_LEFT} x2={chartWidth - PADDING_RIGHT} y1={y} y2={y} />
+              <text className="chart-axis-value" x={PADDING_LEFT - 8} y={y + 3} textAnchor="end">
                 {formatAxisValue(value)}
               </text>
             </g>
@@ -137,12 +144,11 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
 
         {hovered && (
           <line
+            className="chart-cursor"
             x1={xFor(hoverIndex)}
             x2={xFor(hoverIndex)}
             y1={PADDING_TOP}
             y2={PADDING_TOP + plotHeight}
-            stroke="#d1d5db"
-            strokeWidth={1}
           />
         )}
 
@@ -164,7 +170,7 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
               ))}
               {last && (
                 <g>
-                  <circle cx={xFor(last.index)} cy={yFor(last.value)} r={5} fill="#fff" />
+                  <circle className="chart-point-halo" cx={xFor(last.index)} cy={yFor(last.value)} r={5} />
                   <circle cx={xFor(last.index)} cy={yFor(last.value)} r={4} fill={s.color} />
                 </g>
               )}
@@ -174,7 +180,7 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
 
         {labels.map((label, i) =>
           i % labelEvery === 0 ? (
-            <text key={i} x={xFor(i)} y={height - 6} fontSize={9} fill="#6b7280" textAnchor="middle">
+            <text className="chart-axis-label" key={i} x={xFor(i)} y={height - 6} textAnchor="middle">
               {label}
             </text>
           ) : null,
@@ -191,12 +197,12 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
       </div>
 
       {hovered && (
-        <div className="line-chart__tooltip" style={{ left: pointer.x + 12, top: pointer.y - 12 }}>
-          <div className="line-chart__tooltip-label">{labels[hoverIndex]}</div>
+        <div className="chart-tooltip" style={{ left: pointer.x + 12, top: pointer.y - 12 }}>
+          <div className="chart-tooltip__label">{labels[hoverIndex]}</div>
           {series.map((s) => {
             const point = s.data[hoverIndex];
             return (
-              <div key={s.name} className="line-chart__tooltip-row">
+              <div key={s.name} className="chart-tooltip__row">
                 <LineKey color={s.color} dashed={s.dashed} width={12} />
                 <strong>{point.value === null ? "—" : valueFormatter(point.value)}</strong>
                 <span>{s.name}</span>

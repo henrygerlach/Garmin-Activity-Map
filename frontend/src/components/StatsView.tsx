@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Activity } from "../types";
-import { ACTIVITY_COLORS } from "../lib/colors";
+import { ACTIVITY_COLORS, CHART_NEUTRAL } from "../lib/colors";
 import { formatDistance, formatDistanceCompact, formatDurationCompact, formatHr } from "../lib/format";
 import {
   computeByDayOfWeek,
@@ -66,24 +66,27 @@ export function StatsView({ activities }: StatsViewProps) {
   const dailyActivity = useMemo(() => computeDailyActivity(activities), [activities]);
 
   if (activities.length === 0) {
-    return <p className="empty-state">No activities yet. Click "Update" to sync from Garmin Connect.</p>;
+    return <p className="empty-state">Nothing logged yet. Sync to pull your walks and rides from Garmin Connect.</p>;
   }
 
   const weeklyLabelEvery = labelStride(weekBuckets.length);
 
   return (
     <div className="stats-view">
-      <div className="stat-tile-grid">
-        <StatTile label="Total activities" value={String(summary.totalActivities)} />
-        <StatTile
-          label="Total distance"
-          value={formatDistanceCompact(summary.totalWalkDistanceM + summary.totalBikeDistanceM)}
-        />
-        <StatTile label="Total time moving" value={formatDurationCompact(summary.totalMovingSeconds)} />
-        <StatTile label="Current streak" value={`${summary.currentStreakDays} day${summary.currentStreakDays === 1 ? "" : "s"}`} />
-        <StatTile label="Longest walk" value={formatDistance(summary.longestWalkM)} />
-        <StatTile label="Longest bike ride" value={formatDistance(summary.longestBikeM)} />
-        <StatTile label="Average heart rate" value={formatHr(summary.avgHr)} />
+      <div className="stat-panel">
+        <div className="stat-tile-grid">
+          <StatTile label="Activities" value={String(summary.totalActivities)} />
+          <StatTile label="Walked" value={formatDistanceCompact(summary.totalWalkDistanceM)} />
+          <StatTile label="Cycled" value={formatDistanceCompact(summary.totalBikeDistanceM)} />
+          <StatTile label="Time moving" value={formatDurationCompact(summary.totalMovingSeconds)} />
+          <StatTile
+            label="Current streak"
+            value={`${summary.currentStreakDays} day${summary.currentStreakDays === 1 ? "" : "s"}`}
+          />
+          <StatTile label="Longest walk" value={formatDistance(summary.longestWalkM)} />
+          <StatTile label="Longest ride" value={formatDistance(summary.longestBikeM)} />
+          <StatTile label="Avg heart rate" value={formatHr(summary.avgHr)} />
+        </div>
       </div>
 
       <div className="chart-grid">
@@ -139,11 +142,11 @@ export function StatsView({ activities }: StatsViewProps) {
 
         <section className="chart-card">
           <h2>Activities by day of week</h2>
-          <BarChart data={byDay} color="#6b7280" valueFormatter={(v) => `${v} activities`} />
+          <BarChart data={byDay} color={CHART_NEUTRAL} valueFormatter={(v) => `${v} activities`} />
         </section>
         <section className="chart-card">
           <h2>Activities by hour of day</h2>
-          <BarChart data={byHour} color="#6b7280" valueFormatter={(v) => `${v} activities`} labelEvery={3} />
+          <BarChart data={byHour} color={CHART_NEUTRAL} valueFormatter={(v) => `${v} activities`} labelEvery={3} />
         </section>
       </div>
     </div>

@@ -11,6 +11,11 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787
 
 type Tab = "map" | "stats";
 
+const TABS: { id: Tab; label: string }[] = [
+  { id: "map", label: "Map" },
+  { id: "stats", label: "Statistics" },
+];
+
 function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -46,16 +51,20 @@ function App() {
     <div className="app">
       <aside className="sidebar">
         <header className="sidebar__header">
-          <h1>Walkies</h1>
+          <h1>Garmin Activity Map</h1>
           <UpdateButton apiBaseUrl={API_BASE_URL} onSynced={loadActivities} onSyncError={setSyncError} />
         </header>
+        {error && <p className="error-banner">{error}</p>}
+        {syncError && (
+          <p className="error-banner">
+            <strong>Garmin sync failed.</strong> {syncError}
+          </p>
+        )}
+        <div className="sidebar__listbar">
+          <span className="eyebrow">Activities</span>
+          <span className="eyebrow">{loading ? "—" : activities.length.toLocaleString()}</span>
+        </div>
         <div className="sidebar__body">
-          {error && <p className="error-banner">{error}</p>}
-          {syncError && (
-            <p className="error-banner">
-              <strong>Garmin sync failed:</strong> {syncError}
-            </p>
-          )}
           {loading ? (
             <p className="empty-state">Loading…</p>
           ) : (
@@ -70,21 +79,23 @@ function App() {
         </div>
       </aside>
       <main className="content-pane">
-        <nav className="tabs">
-          <button
-            className={activeTab === "map" ? "tab tab--active" : "tab"}
-            onClick={() => setActiveTab("map")}
-          >
-            Map
-          </button>
-          <button
-            className={activeTab === "stats" ? "tab tab--active" : "tab"}
-            onClick={() => setActiveTab("stats")}
-          >
-            Statistics
-          </button>
+        <nav className="tabs" role="tablist" aria-label="View">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={activeTab === id}
+              aria-controls="view-panel"
+              className={activeTab === id ? "tab tab--active" : "tab"}
+              onClick={() => setActiveTab(id)}
+            >
+              {label}
+            </button>
+          ))}
         </nav>
-        <div className="content-pane__body">
+        <div className="content-pane__body" id="view-panel" role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
           {activeTab === "map" ? (
             <MapView activities={activities} hoveredId={hoveredId} onHover={setHoveredId} selectedId={selectedId} />
           ) : (

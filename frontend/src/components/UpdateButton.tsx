@@ -54,20 +54,23 @@ export function UpdateButton({ apiBaseUrl, onSynced, onSyncError }: UpdateButton
     }
   }
 
+  // The control keeps one name the whole way through — the button says Sync,
+  // the in-flight state says Syncing, the result says Synced — so the action
+  // is recognisable at every step.
   let statusText: string;
   if (syncing) {
-    statusText = "Syncing…";
+    statusText = "Working…";
   } else if (!lastSync) {
     statusText = "Never synced";
   } else {
-    const suffix = lastSync.synced > 0 ? ` (${lastSync.synced} new)` : "";
-    statusText = `Last synced ${formatRelativeTime(lastSync.at)}${suffix}`;
+    const suffix = lastSync.synced > 0 ? ` · ${lastSync.synced} new` : "";
+    statusText = `Synced ${formatRelativeTime(lastSync.at)}${suffix}`;
   }
 
   return (
     <div className="update-control">
-      <button onClick={handleClick} disabled={syncing}>
-        {syncing ? "Syncing…" : "Update"}
+      <button type="button" onClick={handleClick} disabled={syncing}>
+        {syncing ? "Syncing…" : "Sync"}
       </button>
       <span className="update-status">{statusText}</span>
     </div>

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { Bucket } from "../lib/stats";
+import { useElementWidth } from "../lib/useElementWidth";
 
 interface BarChartProps {
   data: Bucket[];
@@ -12,8 +13,12 @@ interface BarChartProps {
 const PADDING_LEFT = 34;
 const PADDING_TOP = 10;
 const PADDING_BOTTOM = 20;
-const SLOT_WIDTH = 34;
-const BAR_WIDTH = 24;
+// Slots stretch to fill the card and only fall back to MIN_SLOT — at which
+// point the chart scrolls — once there are more buckets than will fit.
+const MIN_SLOT_WIDTH = 22;
+const FALLBACK_SLOT_WIDTH = 34;
+const MAX_BAR_WIDTH = 40;
+const BAR_SHARE = 0.72;
 const GRID_STEPS = 4;
 
 function niceCeiling(value: number): number {
@@ -47,9 +52,15 @@ export function BarChart({
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const availableWidth = useElementWidth(containerRef);
 
   const plotHeight = height - PADDING_TOP - PADDING_BOTTOM;
-  const chartWidth = PADDING_LEFT + data.length * SLOT_WIDTH;
+  const slotWidth =
+    availableWidth > 0 && data.length > 0
+      ? Math.max(MIN_SLOT_WIDTH, (availableWidth - PADDING_LEFT) / data.length)
+      : FALLBACK_SLOT_WIDTH;
+  const barWidth = Math.min(slotWidth * BAR_SHARE, MAX_BAR_WIDTH);
+  const chartWidth = PADDING_LEFT + data.length * slotWidth;
   const maxValue = niceCeiling(Math.max(...data.map((d) => d.value), 0));
 
   function yFor(value: number): number {
@@ -70,8 +81,8 @@ export function BarChart({
           const y = yFor(value);
           return (
             <g key={i}>
-              <line x1={PADDING_LEFT} x2={chartWidth} y1={y} y2={y} stroke="#e5e4e7" strokeWidth={1} />
-              <text x={PADDING_LEFT - 6} y={y + 3} fontSize={9} fill="#9ca3af" textAnchor="end">
+              <line className="chart-gridline" x1={PADDING_LEFT} x2={chartWidth} y1={y} y2={y} />
+              <text className="chart-axis-value" x={PADDING_LEFT - 6} y={y + 3} textAnchor="end">
                 {formatAxisValue(value)}
               </text>
             </g>
@@ -79,7 +90,7 @@ export function BarChart({
         })}
 
         {data.map((d, i) => {
-          const x = PADDING_LEFT + i * SLOT_WIDTH + (SLOT_WIDTH - BAR_WIDTH) / 2;
+          const x = PADDING_LEFT + i * slotWidth + (slotWidth - barWidth) / 2;
           const barHeight = (d.value / maxValue) * plotHeight;
           const y = PADDING_TOP + plotHeight - barHeight;
           const isHovered = hoveredIndex === i;
@@ -89,10 +100,10 @@ export function BarChart({
               onMouseEnter={() => setHoveredIndex(i)}
               onMouseLeave={() => setHoveredIndex(null)}
             >
-              <rect x={x} y={PADDING_TOP} width={BAR_WIDTH} height={plotHeight} fill="transparent" />
-              <path d={roundedTopBarPath(x, y, BAR_WIDTH, barHeight, 4)} fill={color} opacity={isHovered ? 1 : 0.82} />
+              <rect x={x} y={PADDING_TOP} width={barWidth} height={plotHeight} fill="transparent" />
+              <path d={roundedTopBarPath(x, y, barWidth, barHeight, 4)} fill={color} opacity={isHovered ? 1 : 0.82} />
               {i % labelEvery === 0 && (
-                <text x={x + BAR_WIDTH / 2} y={height - 4} fontSize={9} fill="#6b7280" textAnchor="middle">
+                <text className="chart-axis-label" x={x + barWidth / 2} y={height - 4} textAnchor="middle">
                   {d.label}
                 </text>
               )}
@@ -101,7 +112,7 @@ export function BarChart({
         })}
       </svg>
       {hoveredIndex !== null && (
-        <div className="bar-chart__tooltip" style={{ left: pointer.x + 12, top: pointer.y - 8 }}>
+        <div className="chart-tooltip chart-tooltip--above" style={{ left: pointer.x + 12, top: pointer.y - 8 }}>
           <strong>{valueFormatter(data[hoveredIndex].value)}</strong>
           <span>{data[hoveredIndex].label}</span>
         </div>

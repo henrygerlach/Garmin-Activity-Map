@@ -1,3 +1,44 @@
+/* ── Garmin Activity Map design tokens ────────────────────────────────────────────────
+   Direction: "field instrument". The chrome is a map case — cool lichen
+   paper, hairline rules, precise figures — so that the only saturated
+   things on screen are the map and the traces drawn on it. */
+
+:root {
+  /* Surfaces. A cool grey-green, the colour of a walking map's margin. */
+  --paper: #e7e9e2;
+  --case: #f6f7f3;
+  --case-sunk: #eef0e9;
+
+  /* Ink. Olive-black rather than pure black, to sit with the paper. */
+  --ink: #1f241c;
+  --ink-2: #4a5046;
+  --graphite: #6c7266;
+  --graphite-2: #8d9287;
+
+  --rule: #d3d6cc;
+  --rule-soft: #e2e4dc;
+
+  /* Trace colours. Blaze vermilion and deep teal: a waymarker pair that
+     stays distinguishable for red-green colour blindness and reads over map
+     tiles, which blue never does — on a map, blue is water. */
+  --walk: #d2451e;
+  --bike: #0e7c74;
+  --walk-wash: #fbeee8;
+  --bike-wash: #e5f1ef;
+
+  --alert: #9b2c1a;
+  --alert-wash: #f8eae6;
+
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+
+  --shade: 0 1px 2px rgb(31 36 28 / 6%);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -10,6 +51,32 @@ body,
 }
 
 body {
-  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
-  color: #111827;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  /* Data is read down a column far more than across a row here, so figures
+     line up by default everywhere and are never opted back out of. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Every interactive surface gets the same ring, offset off the element so it
+   stays visible against both --case and the vermilion filled states. */
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
