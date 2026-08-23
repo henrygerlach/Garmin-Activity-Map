@@ -20,6 +20,13 @@ notify() {
   osascript -e "display notification \"$1\" with title \"$NOTIFY_TITLE\"" >/dev/null 2>&1
 }
 
+# Every step is both logged and shown as a notification: the app is launched from
+# Spotlight, so the log is the only other feedback and nobody watches it.
+step() {
+  echo "$1"
+  notify "$1"
+}
+
 port_open() {
   nc -z localhost "$1" >/dev/null 2>&1
 }
@@ -45,16 +52,16 @@ ensure_server() {
   local port="$1" dir="$2" name="$3" pid
   if port_open "$port"; then
     if port_owned_by_dir "$port" "$dir"; then
-      echo "$name already running on port $port."
+      step "$name already running on port $port."
       return
     fi
     pid=$(port_owner_pid "$port")
-    echo "$name: port $port held by stale process $pid (wrong/old directory), killing it."
+    step "$name: replacing stale process $pid on port $port ..."
     kill "$pid" 2>/dev/null
     sleep 1
     kill -9 "$pid" 2>/dev/null
   fi
-  echo "Starting $name..."
+  step "Starting $name ..."
   # `set -m` turns on job control inside the subshell, which puts the whole
   # npm -> tsx/vite -> node tree into its own process group. We record that
   # group in $name.pid so stop-app.sh can take the tree down with one signal
@@ -67,13 +74,15 @@ ensure_server() {
   )
 }
 
+step "Starting up ..."
+
 # 1. Docker must be up before `supabase start` will work.
 if ! docker info >/dev/null 2>&1; then
   if command -v colima >/dev/null 2>&1; then
-    echo "Starting colima..."
+    step "Starting colima ..."
     colima start >>"$RUN_DIR/colima.log" 2>&1
   else
-    echo "Starting Docker..."
+    step "Starting Docker ..."
     open -a Docker
   fi
   waited=0
@@ -82,21 +91,27 @@ if ! docker info >/dev/null 2>&1; then
     waited=$((waited + 2))
     if [ "$waited" -ge 90 ]; then
       echo "Docker did not start in time"
-      notify "Docker didn't start in time"
+      notify "Error: Docker didn't start in time."
       exit 1
     fi
   done
+  step "Docker is ready."
+else
+  step "Docker already running."
 fi
 
 # 2. Local Supabase stack.
 cd "$PROJECT_DIR" || exit 1
 if ! supabase status >/dev/null 2>&1; then
-  echo "Starting Supabase..."
+  step "Starting Supabase ..."
   if ! supabase start >>"$RUN_DIR/supabase.log" 2>&1; then
     echo "supabase start failed"
-    notify "supabase start failed - see .run/supabase.log"
+    notify "Error: supabase start failed - see .run/supabase.log"
     exit 1
   fi
+  step "Supabase is up."
+else
+  step "Supabase already running."
 fi
 
 # 3. Backend (http://127.0.0.1:8787) and frontend (http://localhost:5173).
@@ -104,16 +119,17 @@ ensure_server 8787 "$PROJECT_DIR/backend" backend
 ensure_server 5173 "$PROJECT_DIR/frontend" frontend
 
 # 5. Wait for the frontend to answer, then open it.
+step "Waiting for the frontend to answer ..."
 waited=0
 until curl -sf "$FRONTEND_URL" >/dev/null 2>&1; do
   sleep 1
   waited=$((waited + 1))
   if [ "$waited" -ge 60 ]; then
     echo "Frontend did not come up in time"
-    notify "Frontend didn't start in time - see .run/frontend.log"
+    notify "Error: frontend didn't start in time - see .run/frontend.log"
     exit 1
   fi
 done
 
-echo "Opening $FRONTEND_URL"
+step "Ready - opening $FRONTEND_URL"
 open "$FRONTEND_URL"

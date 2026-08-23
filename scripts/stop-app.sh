@@ -15,6 +15,15 @@ notify() {
   osascript -e "display notification \"$1\" with title \"Garmin Activity Map\"" >/dev/null 2>&1
 }
 
+# Every step is both logged and shown as a notification: the app is launched from
+# Spotlight, so the log is the only other feedback and nobody watches it.
+step() {
+  echo "$1"
+  notify "$1"
+}
+
+step "Shutting down ..."
+
 # cwd of a process, or empty if it's gone / not inspectable.
 proc_cwd() {
   lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1
@@ -60,7 +69,7 @@ stop_server() {
   if [ -f "$pidfile" ]; then
     pgid=$(tr -d '[:space:]' <"$pidfile")
     if [ -n "$pgid" ] && kill -0 "-$pgid" 2>/dev/null; then
-      echo "Stopping $name (process group $pgid)..."
+      step "Stopping $name (process group $pgid) ..."
       kill_group "$pgid"
       stopped=1
     fi
@@ -69,36 +78,55 @@ stop_server() {
 
   pid=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null | head -1)
   if [ -n "$pid" ]; then
-    echo "Stopping $name leftovers on port $port (pid $pid)..."
+    step "Stopping $name leftovers on port $port (pid $pid) ..."
     kill_listener_tree "$pid"
     stopped=1
   fi
 
-  [ "$stopped" -eq 1 ] || echo "$name not running."
+  if [ "$stopped" -eq 1 ]; then
+    step "$name stopped."
+  else
+    step "$name was not running."
+  fi
 }
 
 stop_server 5173 frontend
 stop_server 8787 backend
 
-cd "$PROJECT_DIR" || exit 1
+if ! cd "$PROJECT_DIR"; then
+  echo "Project directory not found: $PROJECT_DIR"
+  notify "Error: project directory not found - $PROJECT_DIR"
+  exit 1
+fi
 if supabase status >/dev/null 2>&1; then
-  echo "Stopping Supabase..."
-  supabase stop
+  step "Stopping Supabase ..."
+  if supabase stop; then
+    step "Supabase stopped."
+  else
+    echo "supabase stop failed"
+    notify "Error: supabase stop failed - see .run/stop-app.log"
+  fi
 else
-  echo "Supabase not running."
+  step "Supabase was not running."
 fi
 
 if docker info >/dev/null 2>&1; then
   if command -v colima >/dev/null 2>&1 && colima status >/dev/null 2>&1; then
-    echo "Stopping colima..."
-    colima stop >>"$RUN_DIR/colima.log" 2>&1
+    step "Stopping colima ..."
+    if colima stop >>"$RUN_DIR/colima.log" 2>&1; then
+      step "Colima stopped."
+    else
+      echo "colima stop failed"
+      notify "Error: colima stop failed - see .run/colima.log"
+    fi
   else
-    echo "Quitting Docker..."
+    step "Quitting Docker ..."
     osascript -e 'quit app "Docker"' >/dev/null 2>&1
+    step "Docker quit."
   fi
 else
-  echo "Docker not running."
+  step "Docker was not running."
 fi
 
 echo "Done."
-notify "Stopped frontend, backend, Supabase, and Docker."
+notify "Done - frontend, backend, Supabase, and Docker are stopped."
