@@ -385,8 +385,11 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Logflare/Elixir; it is the heaviest container in the stack and gets OOM-killed
+# in the 2-4 GiB colima VM, which makes `supabase start` fail its health checks.
+# It only powers the Logs pane in Studio, so local dev runs fine without it.
 [analytics]
-enabled = true
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
