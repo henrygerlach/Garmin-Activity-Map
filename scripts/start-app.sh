@@ -115,6 +115,11 @@ else
 fi
 
 # 3. Backend (http://127.0.0.1:8787) and frontend (http://localhost:5173).
+#
+# Both are clear of the other local projects with a start/stop launcher, all of which
+# are meant to be runnable at the same time: Comdirect Dashboard III on 8000, Comdirect
+# Dashboard I on 8010, Kognitions-Tracker on 8081/8001, Post COVID Dashboard on 5017.
+# Supabase adds 54320-54329 and 8083, which nothing else here touches.
 ensure_server 8787 "$PROJECT_DIR/backend" backend
 ensure_server 5173 "$PROJECT_DIR/frontend" frontend
 
