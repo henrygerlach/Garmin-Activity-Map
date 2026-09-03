@@ -10,6 +10,8 @@ a set of stats about how much I move, when, and how that's changed over time.
       shows its Date, Distance, Speed ("in Bewegung" — moving speed, excluding time stopped),
       and Avg. HR, and lifts it above the rest in a lighter tint so it stands out among hundreds
       of overlapping tracks.
+    * The hover tooltip also says how often I've been at that particular point of the track —
+      how many of the currently shown activities pass within ~25 m of it.
     * Filter by activity type (All / Walk / Bike) and date range (All time / last 30 / 90 days /
       12 months).
     * Heatmap mode swaps the individual paths for a density heatmap of where I've spent the most

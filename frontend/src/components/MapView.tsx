@@ -5,6 +5,7 @@ import type { Activity, ActivityKind } from "../types";
 import { formatDate, formatDistance, formatSpeed, formatHr, movingSpeedMps } from "../lib/format";
 import { ACTIVITY_COLORS, ACTIVITY_HIGHLIGHT_COLORS } from "../lib/colors";
 import { DATE_RANGE_OPTIONS, DATE_RANGE_LABELS, filterByDateRange, type DateRangeOption } from "../lib/dateRange";
+import { createVisitIndex, nearestPointOnTrack, type VisitIndex } from "../lib/visitCounts";
 import { HeatmapLayer } from "./HeatmapLayer";
 
 function FitBounds({ activities }: { activities: Activity[] }) {
@@ -38,10 +39,20 @@ interface ActivityPolylineProps {
   activity: Activity;
   isHighlighted: boolean;
   onHover: (id: string | null) => void;
+  visitIndex: VisitIndex;
 }
 
-function ActivityPolyline({ activity, isHighlighted, onHover }: ActivityPolylineProps) {
+function ActivityPolyline({ activity, isHighlighted, onHover, visitIndex }: ActivityPolylineProps) {
   const layerRef = useRef<L.Polyline>(null);
+  // How many activities pass the point of this track under the cursor. Kept here rather
+  // than in the parent so tracking the pointer only re-renders this one line —
+  // and React bails out of the render entirely while the count is unchanged.
+  const [visitsHere, setVisitsHere] = useState<number | null>(null);
+
+  const countVisitsAt = (latlng: L.LatLng) => {
+    const onTrack = nearestPointOnTrack(activity.points, latlng.lat, latlng.lng);
+    return onTrack ? visitIndex.countAt(onTrack[0], onTrack[1]) : 0;
+  };
 
   // Reordering JSX children doesn't reorder Leaflet's own SVG layer stack —
   // Leaflet manages that internally — so bring the layer forward explicitly
@@ -62,8 +73,15 @@ function ActivityPolyline({ activity, isHighlighted, onHover }: ActivityPolyline
         opacity: isHighlighted ? 1 : 0.7,
       }}
       eventHandlers={{
-        mouseover: () => onHover(activity.id),
-        mouseout: () => onHover(null),
+        mouseover: (e) => {
+          onHover(activity.id);
+          setVisitsHere(countVisitsAt(e.latlng));
+        },
+        mousemove: (e) => setVisitsHere(countVisitsAt(e.latlng)),
+        mouseout: () => {
+          onHover(null);
+          setVisitsHere(null);
+        },
       }}
     >
       <Tooltip sticky>
@@ -74,6 +92,14 @@ function ActivityPolyline({ activity, isHighlighted, onHover }: ActivityPolyline
         {formatDistance(activity.distance_m)} · {formatSpeed(movingSpeedMps(activity))}
         <br />
         Avg HR: {formatHr(activity.avg_hr)}
+        {visitsHere !== null && (
+          <>
+            <br />
+            <span className="map-tooltip__visits">
+              {visitsHere === 1 ? "Been here once" : `Been here ${visitsHere} times`}
+            </span>
+          </>
+        )}
       </Tooltip>
     </Polyline>
   );
@@ -117,6 +143,10 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
     if (!selected || (typeFilter !== "all" && selected.type !== typeFilter)) return filtered;
     return [...filtered, selected];
   }, [filtered, selectedId, withGps, typeFilter]);
+
+  // Built lazily on the first hover, and thrown away whenever the visible set
+  // changes so the count always reflects what's actually on the map.
+  const visitIndex = useMemo(() => createVisitIndex(displayed), [displayed]);
 
   return (
     <div className="map-page">
@@ -175,6 +205,7 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
                 activity={activity}
                 isHighlighted={activity.id === hoveredId || activity.id === selectedId}
                 onHover={onHover}
+                visitIndex={visitIndex}
               />
             ))
           )}

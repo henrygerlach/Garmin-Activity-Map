@@ -238,6 +238,17 @@
   display: none;
 }
 
+/* The "how often have I been here" line answers a different question than the
+   activity's own stats above it, so it gets a rule and a quieter tone rather
+   than becoming a fifth equal-weight row. */
+.map-tooltip__visits {
+  display: inline-block;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid rgb(255 255 255 / 18%);
+  color: var(--graphite-2);
+}
+
 .leaflet-bar a,
 .leaflet-control-attribution {
   color: var(--ink-2);
