@@ -1,4 +1,4 @@
-# Walkies
+# Garmin Activity Map
 
 A webapp that maps every walk and bike ride I've logged on Garmin, and turns the history into
 a set of stats about how much I move, when, and how that's changed over time.
