@@ -211,6 +211,94 @@
 
 /* Two toggles sit at the right end of the toolbar; only the first needs the
    auto margin that pushes the pair over. */
+.map-toolbar__toggle--tight {
+  margin-left: 0;
+}
+
+/* ── Time-lapse transport ────────────────────────────────────────────────── */
+/* Its own bar under the toolbar rather than an overlay on the map: the map
+   already carries the frequency legend in one corner and Leaflet's own
+   controls in the others, and a scrubber has to span the full width to be
+   worth dragging. */
+.timelapse {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 20px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--case-sunk);
+  flex-shrink: 0;
+}
+
+.timelapse__play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--case);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.timelapse__play:hover {
+  background: var(--ink);
+  color: var(--case);
+}
+
+/* The bar's own ground is the sunk tone the segmented control normally uses, so
+   lift the control to the raised one to keep it legible as a control. */
+.timelapse .segmented {
+  background: var(--case);
+  flex-shrink: 0;
+}
+
+.timelapse .segmented__option {
+  padding: 3px 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timelapse__scrubber {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  margin: 0;
+  border-radius: 2px;
+  background: var(--rule);
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+
+/* The date and totals change on every frame, so the readout is fixed-width and
+   tabular — otherwise the digits jitter and the block shifts under the eye as
+   the numbers grow. */
+.timelapse__readout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+  min-width: 116px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timelapse__date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.timelapse__totals {
+  font-size: 10.5px;
+  color: var(--graphite);
+}
 
 .map-canvas {
   flex: 1;

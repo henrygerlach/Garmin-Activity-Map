@@ -16,6 +16,32 @@ a set of stats about how much I move, when, and how that's changed over time.
       12 months).
     * Heatmap mode swaps the individual paths for a density heatmap of where I've spent the most
       time.
+    * **Time-lapse mode** replays the history: a scrubber steps day by day through whatever the
+      filters leave visible, drawing tracks as they were logged and keeping everything drawn so
+      far, so the map fills in from nothing. A readout counts the activities and distance revealed
+      so far. Switching it on rewinds to the first day but doesn't start playing — it waits for the
+      play button, so ticking the box never yanks the map away from whatever was being looked at,
+      and a date can be scrubbed to directly instead. Playback speed is adjustable (0.25× / 0.5× /
+      1× / 2×, changeable mid-run), where 1× puts a year of logging past in about twenty seconds.
+      It starts at half speed, because at full speed a walk somewhere new can go by between
+      glances.
+    * Changing a filter mid-run holds the day you were on rather than jumping: the cursor is a
+      date, not a position in the day list, so it still means the same thing after the range is
+      rebuilt — and where that date falls outside a narrower range it parks on the nearest end,
+      then returns to where it was when the filter is widened again. Scrubbing works the same in
+      both directions; the camera re-aims when the frame no longer fits what's drawn *and* when it
+      has grown far wider than it, so going back in time zooms in again instead of leaving a few
+      early tracks as a speck in a frame sized for a whole year.
+    * The camera follows the day being drawn. It frames that day's last track together with
+      everything already drawn within about 25 km of it — a radius set well above the span of a
+      city's walking routes and well below the distance to the next city. So a new walk in a city
+      already full of lines shows the whole city, while a trip somewhere else moves the camera
+      there at the same scale, instead of pulling back until both cities are too small to read.
+      It aims at rather more than that cluster, so the cluster has to grow appreciably before the
+      camera re-aims: across a full year of walking that comes to a handful of moves rather than
+      one a day. The reveal pauses while the camera moves and holds for a beat after it lands
+      before drawing resumes, so tracks are never drawn across a panning map and arriving somewhere
+      new gives a moment to take in where "here" is.
 * **History table**, in a sidebar next to the map, listing every logged activity with its date,
   distance, moving time, speed, and average HR. Columns are sortable, and clicking a row pans the
   map to that activity and highlights it (jumping to the Map tab if needed).
