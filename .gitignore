@@ -12,5 +12,8 @@ npm-debug.log*
 supabase/.branches
 supabase/.temp
 
+# Backup of the real database, written by `npm run seed:demo`
+backend/.demo-backup.json
+
 # Spotlight launcher logs
 .run/

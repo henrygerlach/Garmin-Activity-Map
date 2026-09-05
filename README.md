@@ -117,3 +117,36 @@ walked. Garmin is called once per activity, so a full history takes a few minute
 re-run — it skips whatever already has streams, so an interrupted or rate-limited run just picks up
 where it stopped.
 
+## Demo data
+
+`npm run seed:demo` (in `backend/`) replaces the database with a synthetic history, so the app can
+be screenshotted and recorded for this README without publishing a real home address or a real
+training log. `npm run seed:restore` puts the real history back.
+
+The seed backs the real rows up to `backend/.demo-backup.json` (gitignored) before wiping, which is
+what makes it safe to run on a working database — restoring is a local file copy rather than a
+fresh Garmin sync and backfill. Running the seed a second time keeps the existing backup rather
+than overwriting it with the synthetic rows it would otherwise be reading.
+
+The generated history is two years of walking and cycling around Copenhagen, with two trips away so
+the time-lapse camera has somewhere else to fly to. It's built to exercise the app rather than to
+fill the tables: routes follow real streets and are repeated with realistic GPS scatter, so the
+frequency layer has something to merge; heart rate follows pace with a lag and a slow downward
+drift, so the efficiency and heart-rate-against-pace charts show a real trend; and activity days
+cluster into streaks and thin out over winter, so the calendar heatmap looks like a habit rather
+than a coin flip. Every summary figure is derived from the generated sensor streams, so the tiles,
+the charts and the tracks all agree. It's deterministic apart from its end date, which follows
+today so the streak tile and the calendar stay current.
+
+The routes themselves are hand-placed corners in `demoRoutes.ts`, resolved into the actual streets
+and footpaths between them by `npm run snap-routes` and committed as `demoRouteGeometry.json`.
+Seeding therefore stays offline and deterministic — a routing service in the seed path would make
+every run depend on someone else's uptime — and only that script needs re-running when a route
+changes. It uses the OpenStreetMap community's public Valhalla instance, which needs no API key and
+has pedestrian and bicycle costings, so a walking loop follows the paths through a park rather than
+the ring road around it. A repair pass in the same script pulls corners that sit off the walkable
+network (in the middle of a harbour, most often) onto the nearest spot reachable from both of their
+neighbours, which is what stops a 4 km loop routing 60 km round the long way to a bridge.
+
+Don't press **Update** while the demo data is loaded — it would sync real Garmin activities into
+the middle of it.
