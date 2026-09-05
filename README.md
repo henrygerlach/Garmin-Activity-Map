@@ -21,12 +21,23 @@ a set of stats about how much I move, when, and how that's changed over time.
   map to that activity and highlights it (jumping to the Map tab if needed).
 * **Statistics tab**
     * At-a-glance tiles: total activities, total distance, total time moving, current streak,
-      longest walk, longest bike ride, average heart rate.
+      longest walk, longest bike ride, average heart rate, metres per heartbeat, total climb,
+      total steps and total calories.
     * A GitHub-style calendar heatmap of daily activity.
     * Weekly walking and cycling distance across the full logging history.
     * Speed and heart-rate progression over time (walk vs. bike), so I can see whether I'm
       actually getting faster — with GPS-glitch outliers (e.g. walking indoors) automatically
       excluded from the weekly averages.
+    * **Efficiency progression** — weekly metres travelled per heartbeat (distance ÷ beats spent
+      moving). Rising means more ground for the same cardiac work.
+    * **Heart rate against pace** — every sensor sample binned by the pace it was recorded at, with
+      the average heart rate in each bin drawn as one line per quarter. A line sitting lower than an
+      earlier one means that pace now costs fewer beats per minute, which is the like-for-like
+      version of "am I getting fitter" that a plain speed or heart-rate average can't give. The
+      first five minutes of each activity are dropped, because heart rate lags pace at the start
+      and those samples would drag every band down. Two caveats worth remembering when reading it:
+      summer heat raises heart rate on its own, and hills do too, so a season-to-season difference
+      isn't purely fitness. The card only appears once there are two quarters to compare.
     * Activity patterns by day of week and hour of day.
 * **"Update" button** pulls new activities from Garmin Connect, shows how long ago the last sync
   ran (persisted across reloads), and surfaces Garmin login/sync errors clearly instead of a raw
@@ -36,7 +47,9 @@ a set of stats about how much I move, when, and how that's changed over time.
 
 * `frontend/` — React + TypeScript app (Vite), map rendered with Leaflet/react-leaflet, reads activities directly from Supabase (anon, read-only key).
 * `backend/` — small local Express server. The "Update" button calls its `POST /api/sync`, which logs into Garmin Connect (via the `garmin-connect` npm package) with the credentials in `.env`, fetches new walk/bike activities and their GPS tracks, and writes them into Supabase using the service role key (the only writer — the frontend never sees write access).
-* `supabase/` — Supabase CLI project (local Postgres via Docker). One table, `activities`, holding activity summaries and a simplified `[[lat, lng], ...]` GPS track per activity. Row Level Security allows public read, and only the service role can write.
+* `supabase/` — Supabase CLI project (local Postgres via Docker). Two tables, both public-read with the service role as the only writer:
+    * `activities` — one row per activity: the summary figures Garmin returns (distance, durations, speeds, heart rate, elevation, calories, steps, cadence, heart-rate zones, local start time and location) plus a simplified `[[lat, lng], ...]` GPS track.
+    * `activity_streams` — the per-point sensor series (time, distance, speed, heart rate, elevation, cadence) as parallel arrays index-aligned with that activity's track. Kept in its own table because the frontend selects every column of `activities` to draw the map and the list, and inlining the streams would triple what a page load downloads for data only the statistics tab reads. It's a few MB in total.
 
 Garmin has no official public API, so browser-side calls aren't viable (would expose credentials and hit CORS) — hence the small local backend as the only thing that talks to Garmin.
 
@@ -64,3 +77,17 @@ Prerequisites: Node.js, Docker (for local Supabase), and the Supabase CLI (`brew
 5. Open http://localhost:5173 and click **Update** to pull your Garmin history into Supabase. The first sync backfills your full history and can take a while (Garmin is called once per new activity, with a small delay between calls to avoid rate limits); later syncs only fetch activities that aren't in Supabase yet, so they're fast.
 
 Everything here runs locally — nothing is deployed. `supabase stop` shuts the local stack down.
+
+## Backfilling sensor data
+
+`npm run backfill` (in `backend/`) re-fetches every activity already in the database that has no
+sensor streams yet, filling in the per-point series and the extra summary fields. It's what brings
+a history synced before those columns existed up to date.
+
+It's deliberately separate from the "Update" button: a routine sync stops as soon as it hits a page
+of activities it already knows about, which is the right thing for an incremental update and
+exactly wrong for a backfill, where every activity already exists and the whole history has to be
+walked. Garmin is called once per activity, so a full history takes a few minutes. It's safe to
+re-run — it skips whatever already has streams, so an interrupted or rate-limited run just picks up
+where it stopped.
+

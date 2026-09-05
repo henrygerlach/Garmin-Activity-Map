@@ -20,6 +20,29 @@ export const ACTIVITY_HIGHLIGHT_COLORS: Record<ActivityKind, string> = {
 // so a neutral bar never reads as "some third kind of activity".
 export const CHART_NEUTRAL = "#8d9287";
 
+const PERIOD_RAMP_BASE: [number, number, number] = [196, 201, 191];
+const ACTIVITY_RGB: Record<ActivityKind, [number, number, number]> = {
+  walk: [210, 69, 30],
+  bike: [14, 124, 116],
+};
+
+/**
+ * Colours for `count` series that differ by time period rather than by kind,
+ * running from pale to the activity's own colour — so the oldest period reads
+ * as faded and the newest as full strength. Ordered data gets a sequential
+ * ramp, and tying it to the existing hue keeps the chart from introducing a
+ * fourth colour that would compete with "walk" and "bike".
+ */
+export function periodColors(type: ActivityKind, count: number): string[] {
+  const to = ACTIVITY_RGB[type];
+  if (count <= 1) return [ACTIVITY_COLORS[type]];
+  return Array.from({ length: count }, (_, i) => {
+    const t = i / (count - 1);
+    const [r, g, b] = PERIOD_RAMP_BASE.map((from, c) => Math.round(from + (to[c] - from) * t));
+    return `rgb(${r}, ${g}, ${b})`;
+  });
+}
+
 // Sequential, one hue, light -> dark: magnitude encoding, not identity. Runs
 // from the paper toward the bike teal so the calendar sits inside the palette
 // instead of introducing a fourth colour.

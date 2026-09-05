@@ -2,7 +2,8 @@ import "./env.js";
 
 import cors from "cors";
 import express from "express";
-import { fetchNewActivities } from "./garmin.js";
+import { fetchActivities, login } from "./garmin.js";
+import { saveActivity } from "./persist.js";
 import { supabase } from "./supabase.js";
 
 const app = express();
@@ -29,16 +30,14 @@ app.post("/api/sync", async (_req, res) => {
 
     const knownIds = new Set((existing ?? []).map((row) => row.garmin_activity_id as number));
 
-    const synced = await fetchNewActivities({
-      email,
-      password,
-      knownGarminIds: knownIds,
+    const gc = await login(email, password);
+    const synced = await fetchActivities(gc, {
+      shouldFetch: (garminActivityId) => !knownIds.has(garminActivityId),
+      stopWhenPageFullyKnown: true,
       onProgress: (message) => console.log(message),
-      onActivity: async (activity) => {
-        const { error: upsertError } = await supabase
-          .from("activities")
-          .upsert(activity, { onConflict: "garmin_activity_id" });
-        if (upsertError) throw upsertError;
+      onActivity: async (activity, streams) => {
+        await saveActivity(activity, streams);
+        knownIds.add(activity.garmin_activity_id);
       },
     });
 

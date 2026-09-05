@@ -64,6 +64,9 @@ export interface Summary {
   longestWalkM: number;
   longestBikeM: number;
   avgHr: number | null;
+  totalElevationGainM: number;
+  totalSteps: number;
+  totalCalories: number;
 }
 
 export function computeSummary(activities: Activity[]): Summary {
@@ -74,9 +77,15 @@ export function computeSummary(activities: Activity[]): Summary {
   let longestBikeM = 0;
   let hrSum = 0;
   let hrCount = 0;
+  let totalElevationGainM = 0;
+  let totalSteps = 0;
+  let totalCalories = 0;
 
   for (const activity of activities) {
     totalMovingSeconds += activity.moving_duration_s;
+    totalElevationGainM += activity.elevation_gain_m ?? 0;
+    totalSteps += activity.steps ?? 0;
+    totalCalories += activity.calories ?? 0;
     if (activity.type === "walk") {
       totalWalkDistanceM += activity.distance_m;
       longestWalkM = Math.max(longestWalkM, activity.distance_m);
@@ -99,6 +108,9 @@ export function computeSummary(activities: Activity[]): Summary {
     longestWalkM,
     longestBikeM,
     avgHr: hrCount > 0 ? hrSum / hrCount : null,
+    totalElevationGainM,
+    totalSteps,
+    totalCalories,
   };
 }
 
@@ -187,7 +199,7 @@ const MIN_SAMPLE_FOR_OUTLIER_CHECK = 5;
 // readings can't drag the "normal" band out to cover themselves the way they
 // would with a mean and standard deviation. Only the high tail is flagged —
 // a slow walk is plausible on its own and isn't a sign of a GPS glitch.
-function findHighSpeedOutlierIds(activities: Activity[]): Set<string> {
+export function findHighSpeedOutlierIds(activities: Activity[]): Set<string> {
   const withSpeed = activities
     .map((a) => ({ id: a.id, speed: movingSpeedMps(a) }))
     .filter((x): x is { id: string; speed: number } => x.speed !== null);

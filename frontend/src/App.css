@@ -209,6 +209,9 @@
   cursor: pointer;
 }
 
+/* Two toggles sit at the right end of the toolbar; only the first needs the
+   auto margin that pushes the pair over. */
+
 .map-canvas {
   flex: 1;
   min-height: 0;
@@ -344,6 +347,17 @@
   margin-top: 7px;
 }
 
+/* A qualifier under a tile's label — the window a figure covers, or how it
+   compares with an earlier one. Set below the label's size and weight so it
+   reads as a footnote to the number rather than a second number. */
+.stat-tile__hint {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--graphite);
+  opacity: 0.8;
+  margin-top: 3px;
+}
+
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -376,6 +390,17 @@
   font-size: 12px;
   color: var(--graphite);
   margin: -9px 0 14px;
+}
+
+/* Names what a chart's x-axis measures, for the one chart whose axis isn't
+   self-evident from its tick labels. Centred under the plot, not the card, so
+   it reads as part of the axis. */
+.chart-card__axis-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--graphite);
+  text-align: center;
+  margin: 2px 0 0;
 }
 
 /* ── Chart internals ─────────────────────────────────────────────────────── */
