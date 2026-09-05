@@ -16,6 +16,10 @@ const MAX_CELL = 17;
 const CELL_GAP = 3;
 const ROW_LABEL_WIDTH = 28;
 const TOP_PADDING = 16;
+// Once the cursor gets this close to the container's right edge, the tooltip
+// no longer has room to open rightward and would run off into the gutter —
+// flip it to open to the left of the cursor instead.
+const TOOLTIP_FLIP_MARGIN = 190;
 
 const ROW_LABELS: (string | null)[] = ["Mon", null, "Wed", null, "Fri", null, null];
 
@@ -83,6 +87,8 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
     setHovered({ day, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
 
+  const flip = hovered !== null && availableWidth > 0 && hovered.x > availableWidth - TOOLTIP_FLIP_MARGIN;
+
   return (
     <div className="calendar-heatmap" ref={containerRef} onMouseLeave={() => setHovered(null)}>
       <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="xMinYMin meet">
@@ -142,7 +148,14 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
       </div>
 
       {hovered && (
-        <div className="chart-tooltip chart-tooltip--above" style={{ left: hovered.x + 12, top: hovered.y - 12 }}>
+        <div
+          className="chart-tooltip"
+          style={{
+            left: hovered.x + (flip ? -12 : 12),
+            top: hovered.y - 12,
+            transform: `translateY(-100%)${flip ? " translateX(-100%)" : ""}`,
+          }}
+        >
           <strong>
             {hovered.day.count > 0
               ? `${formatDistance(hovered.day.distanceM)} · ${hovered.day.count} activit${hovered.day.count === 1 ? "y" : "ies"}`

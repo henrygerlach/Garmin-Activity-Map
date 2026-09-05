@@ -3,10 +3,10 @@ import L from "leaflet";
 import { MapContainer, TileLayer, Polyline, Tooltip, useMap } from "react-leaflet";
 import type { Activity, ActivityKind } from "../types";
 import { formatDate, formatDistance, formatSpeed, formatHr, movingSpeedMps } from "../lib/format";
-import { ACTIVITY_COLORS, ACTIVITY_HIGHLIGHT_COLORS } from "../lib/colors";
+import { ACTIVITY_COLORS, ACTIVITY_HIGHLIGHT_COLORS, FREQUENCY_GRADIENT_CSS } from "../lib/colors";
 import { DATE_RANGE_OPTIONS, DATE_RANGE_LABELS, filterByDateRange, type DateRangeOption } from "../lib/dateRange";
 import { createVisitIndex, nearestPointOnTrack, type VisitIndex } from "../lib/visitCounts";
-import { HeatmapLayer } from "./HeatmapLayer";
+import { FrequencyLayer } from "./FrequencyLayer";
 
 function FitBounds({ activities }: { activities: Activity[] }) {
   const map = useMap();
@@ -123,7 +123,8 @@ interface MapViewProps {
 export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewProps) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [dateRange, setDateRange] = useState<DateRangeOption>("all");
-  const [heatmap, setHeatmap] = useState(false);
+  const [frequencyMap, setFrequencyMap] = useState(false);
+  const [frequencyMaxCount, setFrequencyMaxCount] = useState(1);
 
   const withGps = useMemo(() => activities.filter((a) => a.points.length > 1), [activities]);
 
@@ -178,8 +179,8 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
           ))}
         </div>
         <label className="map-toolbar__toggle">
-          <input type="checkbox" checked={heatmap} onChange={(e) => setHeatmap(e.target.checked)} />
-          Heatmap
+          <input type="checkbox" checked={frequencyMap} onChange={(e) => setFrequencyMap(e.target.checked)} />
+          Frequency map
         </label>
       </div>
       <div className="map-canvas">
@@ -196,8 +197,8 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
           />
           <FitBounds activities={displayed} />
           <FlyToSelected activities={displayed} selectedId={selectedId} />
-          {heatmap ? (
-            <HeatmapLayer activities={displayed} />
+          {frequencyMap ? (
+            <FrequencyLayer activities={displayed} onMaxCountChange={setFrequencyMaxCount} />
           ) : (
             displayed.map((activity) => (
               <ActivityPolyline
@@ -210,6 +211,13 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
             ))
           )}
         </MapContainer>
+        {frequencyMap && (
+          <div className="map-legend">
+            <span>1×</span>
+            <span className="map-legend__bar" style={{ background: FREQUENCY_GRADIENT_CSS }} />
+            <span>{frequencyMaxCount}×</span>
+          </div>
+        )}
       </div>
     </div>
   );

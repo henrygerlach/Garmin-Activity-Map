@@ -20,6 +20,10 @@ const FALLBACK_SLOT_WIDTH = 34;
 const MAX_BAR_WIDTH = 40;
 const BAR_SHARE = 0.72;
 const GRID_STEPS = 4;
+// Once the cursor gets this close to the container's right edge, the tooltip
+// no longer has room to open rightward and would run off into the gutter —
+// flip it to open to the left of the cursor instead.
+const TOOLTIP_FLIP_MARGIN = 140;
 
 function niceCeiling(value: number): number {
   if (value <= 0) return 1;
@@ -73,6 +77,8 @@ export function BarChart({
     setPointer({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
 
+  const flip = availableWidth > 0 && pointer.x > availableWidth - TOOLTIP_FLIP_MARGIN;
+
   return (
     <div className="bar-chart" ref={containerRef} onMouseMove={updatePointer}>
       <svg viewBox={`0 0 ${chartWidth} ${height}`} width="100%" height={height} preserveAspectRatio="xMinYMin meet">
@@ -112,7 +118,14 @@ export function BarChart({
         })}
       </svg>
       {hoveredIndex !== null && (
-        <div className="chart-tooltip chart-tooltip--above" style={{ left: pointer.x + 12, top: pointer.y - 8 }}>
+        <div
+          className="chart-tooltip"
+          style={{
+            left: pointer.x + (flip ? -12 : 12),
+            top: pointer.y - 8,
+            transform: `translateY(-100%)${flip ? " translateX(-100%)" : ""}`,
+          }}
+        >
           <strong>{valueFormatter(data[hoveredIndex].value)}</strong>
           <span>{data[hoveredIndex].label}</span>
         </div>

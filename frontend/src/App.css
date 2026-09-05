@@ -215,6 +215,30 @@
   position: relative;
 }
 
+.map-legend {
+  position: absolute;
+  z-index: 1000;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--r-md);
+  background: var(--case);
+  border: 1px solid var(--rule);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--graphite);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+}
+
+.map-legend__bar {
+  width: 96px;
+  height: 8px;
+  border-radius: 4px;
+}
+
 /* Leaflet ships its own typography and a bright white chrome; pull both into
    the palette so the map reads as part of the instrument, not a widget
    dropped into it. */
@@ -447,10 +471,6 @@
   box-shadow: 0 4px 12px rgb(31 36 28 / 18%);
 }
 
-.chart-tooltip--above {
-  transform: translateY(-100%);
-}
-
 .chart-tooltip strong {
   font-weight: 600;
   font-size: 13px;
@@ -458,6 +478,10 @@
 
 .chart-tooltip span {
   color: var(--rule);
+}
+
+.chart-tooltip > strong + span {
+  margin-left: 4px;
 }
 
 .chart-tooltip__label {

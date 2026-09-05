@@ -23,6 +23,10 @@ const PADDING_RIGHT = 16;
 const MIN_SLOT_WIDTH = 22;
 const FALLBACK_SLOT_WIDTH = 34;
 const GRID_STEPS = 4;
+// Once the cursor gets this close to the container's right edge, the tooltip
+// no longer has room to open rightward and would run off into the gutter —
+// flip it to open to the left of the cursor instead.
+const TOOLTIP_FLIP_MARGIN = 170;
 
 function niceAxisBounds(rawMin: number, rawMax: number): { min: number; max: number } {
   let min = rawMin;
@@ -125,6 +129,7 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
   if (pointCount === 0) return null;
 
   const hovered = hoverIndex !== null;
+  const flip = availableWidth > 0 && pointer.x > availableWidth - TOOLTIP_FLIP_MARGIN;
 
   return (
     <div className="line-chart" ref={containerRef} onMouseMove={updatePointer} onMouseLeave={() => setHoverIndex(null)}>
@@ -197,7 +202,14 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
       </div>
 
       {hovered && (
-        <div className="chart-tooltip" style={{ left: pointer.x + 12, top: pointer.y - 12 }}>
+        <div
+          className="chart-tooltip"
+          style={{
+            left: pointer.x + (flip ? -12 : 12),
+            top: pointer.y - 12,
+            transform: flip ? "translateX(-100%)" : undefined,
+          }}
+        >
           <div className="chart-tooltip__label">{labels[hoverIndex]}</div>
           {series.map((s) => {
             const point = s.data[hoverIndex];
