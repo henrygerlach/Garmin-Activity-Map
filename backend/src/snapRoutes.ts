@@ -27,7 +27,7 @@ const VALHALLA_URL = "https://valhalla1.openstreetmap.de/route";
 // A public service being used for free; one request a second is polite.
 const REQUEST_DELAY_MS = 1200;
 
-const COSTING = { walk: "pedestrian", bike: "bicycle" } as const;
+const COSTING = { walk: "pedestrian", run: "pedestrian", bike: "bicycle" } as const;
 // Valhalla refuses more than ten locations in one request, and the longer
 // routes have more corners than that, so they go in overlapping chunks.
 const MAX_LOCATIONS = 10;

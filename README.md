@@ -1,6 +1,6 @@
 # Garmin Activity Map
 
-**Every walk and bike ride I've logged on Garmin, drawn on one map — and the two years of sensor data behind them turned into an answer to "am I actually getting fitter?"**
+**Every walk, run and bike ride I've logged on Garmin, drawn on one map — and the two years of sensor data behind them turned into an answer to "am I actually getting fitter?"**
 
 ![React](https://img.shields.io/badge/React_19-20232a?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -56,6 +56,9 @@ The README states the confounders rather than hiding them: summer heat and hills
 **Schema split under a real payload constraint** — [`supabase/migrations/`](supabase/migrations/)
 The frontend selects every column of `activities` to draw the map and the table. Inlining the per-point sensor series would have tripled the page-load payload for data only the statistics tab reads, so the streams live in their own `activity_streams` table as parallel arrays index-aligned with the track.
 
+**A wellness sync that heals itself** — [`wellness.ts`](backend/src/wellness.ts)
+Steps, resting heart rate and HRV come from three undocumented Garmin range endpoints that each refuse a window longer than 28 days, so the sync walks the history in 28-day chunks and merges the three responses by calendar date. Garmin publishes a resting, a minimum and a maximum heart rate for a day but no average, so that one is computed from the ~2-minute samples the watch records, minus the night: eight hours near the resting rate pull the mean down 6-8 bpm and bury what the day itself cost. Two nights touch one calendar day — the one ending that morning and the one starting that evening — so both windows come out, and days Garmin recorded no sleep for need no window, because those are the nights the watch was off and there are no small-hours samples to remove either. Garmin keeps those samples for about four months and then drops them, so that one series starts where my archive does and grows from every sync since. It starts a week before the newest stored day, because today's step count and last night's resting HR and HRV all land late; days Garmin has nothing for are never written, so the years before I owned the watch are asked once and then skipped forever. That is why there is no separate backfill script: the same request handles the first run and the daily one.
+
 **Getting a macOS Spotlight launcher past TCC** — [`launcher.c`](scripts/launcher.c)
 I wanted to start the whole stack (Docker, Supabase, both dev servers) from Spotlight. A script-based `.app` bundle executable is run by macOS through `/bin/bash`, so TCC attributes file access to `com.apple.bash` and a Full Disk Access grant on the app never matches — reads under `~/Documents` fail with exit 126 and no visible error. The fix is a compiled Mach-O stub that forks the helper script as a **child** rather than `exec`ing it, so the child inherits the app's code identity as its responsible process and the grant applies. Every step notifies via `osascript`, because nobody watches a log file they launched from Spotlight.
 
@@ -68,7 +71,7 @@ I wanted to start the whole stack (Docker, Supabase, both dev servers) from Spot
 ### Map
 - Blue for walks, purple for bike rides. Hovering a line (on the map or in the table) shows Date, Distance, moving speed, and Avg. HR, and lifts it above the rest in a lighter tint so it stands out among hundreds of overlapping tracks.
 - The tooltip also reports how often I've passed that exact point (see [visit index](#engineering-notes)).
-- Filters: activity type (All / Walk / Bike) and date range (All time / 30 / 90 days / 12 months).
+- Filters: activity type (All / Walk / Run / Bike) and date range (All time / 30 / 90 days / 12 months).
 - **Frequency map** toggle collapses the individual paths into one line per route, weighted by how often I've travelled it, with a legend showing the busiest count.
 - **Time-lapse mode** replays the history day by day. Playback speed 0.25×–2×, changeable mid-run; 1× puts a year of logging past in about twenty seconds. Starts at half speed, because at full speed a walk somewhere new goes by between glances. Enabling it rewinds but *doesn't* auto-play, so ticking the box never yanks the map away from what you were looking at.
 
@@ -76,10 +79,11 @@ I wanted to start the whole stack (Docker, Supabase, both dev servers) from Spot
 Sidebar listing every activity — date, distance, moving time, speed, average HR. Sortable columns; clicking a row pans the map to that activity and highlights it, switching to the Map tab if needed.
 
 ### Statistics
-- **Tiles:** total activities, distance, time moving, current streak, longest walk, longest ride, average HR, metres per heartbeat, total climb, steps, calories.
+- **Tiles:** total activities, distance walked / ran / cycled, time moving, longest walk / run / ride, total climb, all-day steps, and the latest resting heart rate and overnight HRV with their 30-day averages.
 - **Calendar heatmap** of daily activity, GitHub-style.
-- **Weekly distance**, walking and cycling, across the full history.
-- **Speed and heart-rate progression** over time, walk vs. bike, with GPS-glitch outliers (walking "indoors") excluded from weekly averages.
+- **Weekly volume**, steps and running/cycling distance, across the full history. Steps are Garmin's all-day totals, not the steps taken during an activity — a day of errands counts.
+- **Heart rate awake and at rest**, and **HRV** — weekly averages of Garmin's overnight readings, with the waking heart rate averaged from the watch's own two-minute samples, sleep excluded.
+- **Speed and heart-rate progression** over time, walk vs. run vs. bike, with GPS-glitch outliers (walking "indoors") excluded from weekly averages.
 - **Efficiency progression** — weekly metres per heartbeat.
 - **Heart rate against pace** — the like-for-like fitness chart described above.
 - **Activity patterns** by day of week and hour of day.
@@ -100,10 +104,11 @@ supabase/  Local Postgres via Docker, CLI-managed migrations
 ```
 
 - **`frontend/`** — React + TypeScript, map via Leaflet / react-leaflet, charts hand-rolled as responsive SVG (no chart library). Reads activities directly from Supabase with a read-only anon key.
-- **`backend/`** — a small local Express server. `POST /api/sync` logs into Garmin Connect, fetches new walk/bike activities and their GPS tracks, and writes them to Supabase with the service role key. It is the only writer; the frontend never holds write access.
-- **`supabase/`** — Supabase CLI project (local Postgres in Docker). Two tables, both public-read:
+- **`backend/`** — a small local Express server. `POST /api/sync` logs into Garmin Connect, fetches new walk/run/bike activities and their GPS tracks, then the daily wellness figures, and writes them to Supabase with the service role key. It is the only writer; the frontend never holds write access.
+- **`supabase/`** — Supabase CLI project (local Postgres in Docker). Three tables, all public-read:
   - `activities` — one row per activity: Garmin's summary figures (distance, durations, speeds, heart rate, elevation, calories, steps, cadence, HR zones, local start time and location) plus a simplified `[[lat, lng], ...]` track.
   - `activity_streams` — per-point sensor series (time, distance, speed, heart rate, elevation, cadence) as parallel arrays index-aligned with that activity's track.
+  - `daily_metrics` — one row per calendar day: all-day step total, resting heart rate, waking average heart rate, overnight HRV average. Keyed by the date alone, because these are wall-clock days from the watch rather than instants.
 
 **Why a backend at all?** Garmin has no official public API. Browser-side calls would expose credentials and hit CORS, so a small local server is the only thing that talks to Garmin.
 
@@ -129,7 +134,7 @@ Prerequisites: Node.js, Docker (for local Supabase), Supabase CLI (`brew install
    ```
 4. Run both dev servers, in separate terminals:
    ```bash
-   (cd backend && npm run dev)   # http://127.0.0.1:8787
+   (cd backend && npm run dev)   # http://127.0.0.1:8788
    (cd frontend && npm run dev)  # http://localhost:5173
    ```
 5. Open http://localhost:5173 and press **Update**. The first sync backfills the full history and takes a while — Garmin is called once per activity, with a delay between calls to stay under rate limits. Later syncs only fetch what's missing, so they're fast.
@@ -164,11 +169,12 @@ It's deliberately separate from **Update**: a routine sync stops as soon as it h
 
 The seed backs up the real rows to `backend/.demo-backup.json` (gitignored) before wiping, which is what makes it safe to run against a working database — restoring is a local file copy, not a fresh Garmin sync and backfill. Running the seed twice keeps the existing backup rather than overwriting it with the synthetic rows it would then be reading.
 
-**The generated history is built to exercise the app, not to fill tables.** Two years of walking and cycling around Copenhagen, plus two trips away so the time-lapse camera has somewhere to fly to:
+**The generated history is built to exercise the app, not to fill tables.** Two years of walking, running and cycling around Copenhagen, plus two trips away so the time-lapse camera has somewhere to fly to:
 - Routes follow real streets and are repeated with realistic GPS scatter, so the frequency layer has something to merge.
 - Heart rate follows pace with a lag and a slow downward drift, so the efficiency and HR-against-pace charts show a real trend.
 - Activity days cluster into streaks and thin out over winter, so the calendar heatmap looks like a habit rather than a coin flip.
 - Every summary figure is derived from the generated sensor streams, so tiles, charts and tracks all agree.
+- Daily steps, heart rate and HRV follow the training: a hard day yesterday costs a few beats and some variability today, and the whole year trends the healthy way. Only the most recent year has HRV, because that is how a watch upgrade looks in the data.
 
 Deterministic apart from its end date, which follows today so the streak tile and calendar stay current.
 

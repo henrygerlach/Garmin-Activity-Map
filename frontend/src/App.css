@@ -118,8 +118,9 @@
   color: var(--ink-2);
 }
 
-/* Chrome accents are ink, never vermilion or teal: those two hues mean
-   "walk" and "bike" everywhere in this app and are not spent on UI state. */
+/* Chrome accents are ink, never vermilion, violet or teal: those three hues
+   mean "walk", "run" and "bike" everywhere in this app and are not spent on
+   UI state. */
 .tab--active {
   color: var(--ink);
   border-bottom-color: var(--ink);
@@ -522,7 +523,21 @@
 .bar-chart {
   position: relative;
   width: 100%;
+}
+
+/* Charts render their SVG at full history width; the card shows a window of it
+   and scrolls back through the rest. Only this inner box scrolls, so tooltips
+   and the axis gutter — siblings of it — are never clipped by the overflow. */
+.chart-scroll {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.chart-axis-gutter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--case);
 }
 
 .line-chart {

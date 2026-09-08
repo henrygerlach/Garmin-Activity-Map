@@ -15,5 +15,14 @@ supabase/.temp
 # Backup of the real database, written by `npm run seed:demo`
 backend/.demo-backup.json
 
+# Cached Garmin OAuth tokens, written on login — credentials, keep them local
+backend/.garmin-tokens/
+
 # Spotlight launcher logs
 .run/
+
+# Claude Plugins + Wrapper
+graphify-out/
+.claude/
+.serena/
+

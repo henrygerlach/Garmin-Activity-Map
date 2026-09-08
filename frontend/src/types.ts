@@ -1,4 +1,4 @@
-export type ActivityKind = "walk" | "bike";
+export type ActivityKind = "walk" | "run" | "bike";
 
 export interface Activity {
   id: string;
@@ -57,10 +57,19 @@ export interface ActivityStreams {
   cadence_spm: (number | null)[];
 }
 
+
 /**
- * The subset of stream columns the pace/heart-rate charts actually download.
- * `t_s` is pulled along with the pace and heart-rate series only so the first
- * few minutes of each activity can be discarded — heart rate lags pace at the
- * start, and those samples would otherwise pull every band down.
+ * One calendar day of Garmin's own wellness figures, independent of any
+ * activity: `total_steps` is the all-day count the watch shows (not the sum of
+ * steps recorded during activities), and resting heart rate and HRV are
+ * measured overnight. Any field is null where Garmin has nothing for that day.
  */
-export type PaceHrStream = Pick<ActivityStreams, "garmin_activity_id" | "t_s" | "speed_mps" | "hr_bpm">;
+export interface DailyMetric {
+  /** `YYYY-MM-DD` — a wall-clock day, with no zone attached. */
+  calendar_date: string;
+  total_steps: number | null;
+  resting_hr: number | null;
+  hrv_last_night_avg: number | null;
+  /** Mean of the day's heart rate samples with sleep excluded, computed by the sync. */
+  waking_avg_hr: number | null;
+}

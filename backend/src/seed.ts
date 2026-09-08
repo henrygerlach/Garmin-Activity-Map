@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { generateDemoHistory } from "./demoData.js";
+import { generateDemoDailyMetrics, generateDemoHistory } from "./demoData.js";
 import { supabase } from "./supabase.js";
 
 /**
@@ -33,15 +33,16 @@ interface Backup {
   savedAt: string;
   activities: Record<string, unknown>[];
   streams: Record<string, unknown>[];
+  dailyMetrics?: Record<string, unknown>[];
 }
 
-async function readAll(table: string): Promise<Record<string, unknown>[]> {
+async function readAll(table: string, orderBy = "garmin_activity_id"): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = [];
   for (let page = 0; ; page++) {
     const { data, error } = await supabase
       .from(table)
       .select("*")
-      .order("garmin_activity_id")
+      .order(orderBy)
       .range(page * READ_PAGE, page * READ_PAGE + READ_PAGE - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
@@ -65,6 +66,9 @@ async function wipe(): Promise<void> {
     const { error } = await supabase.from(table).delete().gte("garmin_activity_id", 0);
     if (error) throw error;
   }
+  // Keyed by date rather than by activity id, so it needs its own predicate.
+  const { error } = await supabase.from("daily_metrics").delete().gte("calendar_date", "1970-01-01");
+  if (error) throw error;
 }
 
 async function backup(): Promise<void> {
@@ -81,10 +85,14 @@ async function backup(): Promise<void> {
     savedAt: new Date().toISOString(),
     activities: await readAll("activities"),
     streams: await readAll("activity_streams"),
+    dailyMetrics: await readAll("daily_metrics", "calendar_date"),
   };
   fs.writeFileSync(BACKUP_PATH, JSON.stringify(data));
   const sizeMb = (fs.statSync(BACKUP_PATH).size / 1e6).toFixed(1);
-  console.log(`  ${data.activities.length} activities, ${data.streams.length} stream rows → ${BACKUP_PATH} (${sizeMb} MB)`);
+  console.log(
+    `  ${data.activities.length} activities, ${data.streams.length} stream rows, ` +
+      `${data.dailyMetrics?.length ?? 0} daily rows → ${BACKUP_PATH} (${sizeMb} MB)`,
+  );
 }
 
 async function seed(): Promise<void> {
@@ -92,8 +100,11 @@ async function seed(): Promise<void> {
 
   console.log("Generating synthetic history…");
   const generated = generateDemoHistory();
+  const dailyMetrics = generateDemoDailyMetrics(generated);
   const points = generated.reduce((sum, g) => sum + g.activity.points.length, 0);
-  console.log(`  ${generated.length} activities, ${points.toLocaleString()} track points`);
+  console.log(
+    `  ${generated.length} activities, ${points.toLocaleString()} track points, ${dailyMetrics.length} days of wellness data`,
+  );
 
   console.log("Wiping…");
   await wipe();
@@ -121,6 +132,7 @@ async function seed(): Promise<void> {
       ...g.streams,
     })),
   );
+  await insertAll("daily_metrics", dailyMetrics as unknown as Record<string, unknown>[]);
 
   console.log("Done. The app now shows synthetic data — run `npm run seed:restore` to get the real history back.");
 }
@@ -136,6 +148,8 @@ async function restore(): Promise<void> {
   // point where they did.
   await insertAll("activities", data.activities);
   await insertAll("activity_streams", data.streams);
+  // Absent from backups taken before the wellness table existed.
+  await insertAll("daily_metrics", data.dailyMetrics ?? []);
 
   fs.rmSync(BACKUP_PATH);
   console.log(`Done. ${data.activities.length} activities restored; backup file removed.`);

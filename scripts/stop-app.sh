@@ -91,7 +91,7 @@ stop_server() {
 }
 
 stop_server 5173 frontend
-stop_server 8787 backend
+stop_server 8788 backend
 
 if ! cd "$PROJECT_DIR"; then
   echo "Project directory not found: $PROJECT_DIR"

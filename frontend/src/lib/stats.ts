@@ -1,4 +1,4 @@
-import type { Activity, ActivityKind } from "../types";
+import type { Activity, ActivityKind, DailyMetric } from "../types";
 import { movingSpeedMps } from "./format";
 
 export interface Bucket {
@@ -57,81 +57,32 @@ export function computeDailyActivity(activities: Activity[]): DayActivity[] {
 
 export interface Summary {
   totalActivities: number;
-  totalWalkDistanceM: number;
-  totalBikeDistanceM: number;
+  totalDistanceM: Record<ActivityKind, number>;
+  longestM: Record<ActivityKind, number>;
   totalMovingSeconds: number;
-  currentStreakDays: number;
-  longestWalkM: number;
-  longestBikeM: number;
-  avgHr: number | null;
   totalElevationGainM: number;
-  totalSteps: number;
-  totalCalories: number;
 }
 
 export function computeSummary(activities: Activity[]): Summary {
-  let totalWalkDistanceM = 0;
-  let totalBikeDistanceM = 0;
+  const totalDistanceM: Record<ActivityKind, number> = { walk: 0, run: 0, bike: 0 };
+  const longestM: Record<ActivityKind, number> = { walk: 0, run: 0, bike: 0 };
   let totalMovingSeconds = 0;
-  let longestWalkM = 0;
-  let longestBikeM = 0;
-  let hrSum = 0;
-  let hrCount = 0;
   let totalElevationGainM = 0;
-  let totalSteps = 0;
-  let totalCalories = 0;
 
   for (const activity of activities) {
     totalMovingSeconds += activity.moving_duration_s;
     totalElevationGainM += activity.elevation_gain_m ?? 0;
-    totalSteps += activity.steps ?? 0;
-    totalCalories += activity.calories ?? 0;
-    if (activity.type === "walk") {
-      totalWalkDistanceM += activity.distance_m;
-      longestWalkM = Math.max(longestWalkM, activity.distance_m);
-    } else {
-      totalBikeDistanceM += activity.distance_m;
-      longestBikeM = Math.max(longestBikeM, activity.distance_m);
-    }
-    if (activity.avg_hr !== null) {
-      hrSum += activity.avg_hr;
-      hrCount += 1;
-    }
+    totalDistanceM[activity.type] += activity.distance_m;
+    longestM[activity.type] = Math.max(longestM[activity.type], activity.distance_m);
   }
 
   return {
     totalActivities: activities.length,
-    totalWalkDistanceM,
-    totalBikeDistanceM,
+    totalDistanceM,
+    longestM,
     totalMovingSeconds,
-    currentStreakDays: computeCurrentStreakDays(activities),
-    longestWalkM,
-    longestBikeM,
-    avgHr: hrCount > 0 ? hrSum / hrCount : null,
     totalElevationGainM,
-    totalSteps,
-    totalCalories,
   };
-}
-
-// Consecutive calendar days with at least one activity, counted backward from
-// the most recently logged day (not necessarily "today").
-export function computeCurrentStreakDays(activities: Activity[]): number {
-  if (activities.length === 0) return 0;
-
-  const dayKeys = new Set(activities.map((a) => new Date(a.start_time).toDateString()));
-  const days = [...dayKeys].map((key) => new Date(key)).sort((a, b) => b.getTime() - a.getTime());
-
-  let streak = 1;
-  for (let i = 1; i < days.length; i++) {
-    const diffDays = Math.round((days[i - 1].getTime() - days[i].getTime()) / 86_400_000);
-    if (diffDays === 1) {
-      streak += 1;
-    } else {
-      break;
-    }
-  }
-  return streak;
 }
 
 function startOfWeek(date: Date): Date {
@@ -272,4 +223,86 @@ export function computeByHourOfDay(activities: Activity[]): Bucket[] {
     counts[hour] += 1;
   }
   return counts.map((value, hour) => ({ label: String(hour), value }));
+}
+
+// --- Daily wellness metrics ------------------------------------------------
+//
+// These come from Garmin's own day-level figures rather than from activities:
+// all-day steps include everything walked with no activity recording, and
+// resting heart rate and HRV are measured overnight.
+
+/**
+ * `YYYY-MM-DD` as a *local* midnight. `new Date("2026-09-07")` would parse as
+ * UTC and land on the previous day for anyone west of Greenwich, which would
+ * quietly file a day's metrics under the wrong week.
+ */
+function parseCalendarDate(calendarDate: string): Date {
+  const [year, month, day] = calendarDate.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function metricsInWeek(metrics: DailyMetric[], bucket: WeekBucket): DailyMetric[] {
+  return metrics.filter((m) => {
+    const date = parseCalendarDate(m.calendar_date);
+    return date >= bucket.weekStart && date < bucket.weekEnd;
+  });
+}
+
+export function computeWeeklySteps(buckets: WeekBucket[], metrics: DailyMetric[]): Bucket[] {
+  return buckets.map((bucket) => {
+    const steps = metricsInWeek(metrics, bucket).reduce((sum, m) => sum + (m.total_steps ?? 0), 0);
+    return { label: bucket.label, value: steps };
+  });
+}
+
+/** Weekly mean of one daily metric, with a gap for weeks Garmin has none. */
+export function computeWeeklyDailyAvg(
+  buckets: WeekBucket[],
+  metrics: DailyMetric[],
+  pick: (metric: DailyMetric) => number | null,
+): SeriesPoint[] {
+  return buckets.map((bucket) => {
+    const values = metricsInWeek(metrics, bucket)
+      .map(pick)
+      .filter((v): v is number => v !== null);
+    const avg = average(values);
+    return { label: bucket.label, value: avg === null ? null : Math.round(avg) };
+  });
+}
+
+export interface WellnessSummary {
+  totalSteps: number;
+  /** Most recent reading, and the mean of the last 30 days for context. */
+  latestRestingHr: number | null;
+  avgRestingHr: number | null;
+  latestHrv: number | null;
+  avgHrv: number | null;
+}
+
+const WELLNESS_RECENT_DAYS = 30;
+
+export function computeWellnessSummary(metrics: DailyMetric[]): WellnessSummary {
+  const sorted = [...metrics].sort((a, b) => a.calendar_date.localeCompare(b.calendar_date));
+  const cutoff = Date.now() - WELLNESS_RECENT_DAYS * 86_400_000;
+  const recent = sorted.filter((m) => parseCalendarDate(m.calendar_date).getTime() >= cutoff);
+
+  const latest = (pick: (m: DailyMetric) => number | null): number | null => {
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const value = pick(sorted[i]);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+  const recentAvg = (pick: (m: DailyMetric) => number | null): number | null => {
+    const avg = average(recent.map(pick).filter((v): v is number => v !== null));
+    return avg === null ? null : Math.round(avg);
+  };
+
+  return {
+    totalSteps: sorted.reduce((sum, m) => sum + (m.total_steps ?? 0), 0),
+    latestRestingHr: latest((m) => m.resting_hr),
+    avgRestingHr: recentAvg((m) => m.resting_hr),
+    latestHrv: latest((m) => m.hrv_last_night_avg),
+    avgHrv: recentAvg((m) => m.hrv_last_night_avg),
+  };
 }

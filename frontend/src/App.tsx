@@ -5,9 +5,9 @@ import { MapView } from "./components/MapView";
 import { StatsView } from "./components/StatsView";
 import { UpdateButton } from "./components/UpdateButton";
 import { supabase } from "./lib/supabase";
-import type { Activity } from "./types";
+import type { Activity, DailyMetric } from "./types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8788";
 
 type Tab = "map" | "stats";
 
@@ -18,6 +18,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [dailyMetrics, setDailyMetrics] = useState<DailyMetric[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,16 +27,18 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>("map");
 
   const loadActivities = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("activities")
-      .select("*")
-      .order("start_time", { ascending: false });
-    if (error) {
-      setError(error.message);
+    const [activityResult, metricsResult] = await Promise.all([
+      supabase.from("activities").select("*").order("start_time", { ascending: false }),
+      supabase.from("daily_metrics").select("*").order("calendar_date", { ascending: true }),
+    ]);
+    const failure = activityResult.error ?? metricsResult.error;
+    if (failure) {
+      setError(failure.message);
       return;
     }
     setError(null);
-    setActivities((data ?? []) as Activity[]);
+    setActivities((activityResult.data ?? []) as Activity[]);
+    setDailyMetrics((metricsResult.data ?? []) as DailyMetric[]);
   }, []);
 
   useEffect(() => {
@@ -99,7 +102,7 @@ function App() {
           {activeTab === "map" ? (
             <MapView activities={activities} hoveredId={hoveredId} onHover={setHoveredId} selectedId={selectedId} />
           ) : (
-            <StatsView activities={activities} />
+            <StatsView activities={activities} dailyMetrics={dailyMetrics} />
           )}
         </div>
       </main>

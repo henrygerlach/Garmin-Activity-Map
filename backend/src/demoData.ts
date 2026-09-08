@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ActivityKind, ActivityStreams, NormalizedActivity } from "./garmin.js";
+import type { DailyMetric } from "./wellness.js";
 import { HOME_ROUTES, TRIPS, type DemoRoute } from "./demoRoutes.js";
 
 /**
@@ -24,6 +25,8 @@ import { HOME_ROUTES, TRIPS, type DemoRoute } from "./demoRoutes.js";
  */
 
 const SEED = 20260905;
+/** Share of on-foot outings logged as a run rather than a walk. */
+const RUN_SHARE = 0.3;
 const HISTORY_DAYS = 730;
 const FIRST_ACTIVITY_ID = 8_800_000_000;
 
@@ -31,7 +34,7 @@ const FIRST_ACTIVITY_ID = 8_800_000_000;
 // spacings land at a few hundred points per activity — about what the real
 // history carries, so the map and the frequency grid get the same input
 // density they were tuned against.
-const POINT_SPACING_M: Record<ActivityKind, number> = { walk: 25, bike: 45 };
+const POINT_SPACING_M: Record<ActivityKind, number> = { walk: 25, run: 30, bike: 45 };
 
 // Metres of side-to-side wander around the road centreline the route follows.
 // Real traces scatter by this much between passes, and the frequency layer's
@@ -239,21 +242,43 @@ function pad(value: number): string {
 interface ActivityContext {
   route: DemoRoute;
   local: { y: number; m: number; d: number; h: number; min: number };
+  /** Usually the route's own type; walking routes are also run. */
+  type: ActivityKind;
   /** 0 at the start of the history, 1 at its end — drives the fitness trend. */
   progress: number;
   garminActivityId: number;
 }
 
 // Everyday pace, before fitness, season and per-day variation.
-const BASE_SPEED_MPS: Record<ActivityKind, number> = { walk: 1.36, bike: 5.1 };
+const BASE_SPEED_MPS: Record<ActivityKind, number> = { walk: 1.36, run: 2.95, bike: 5.1 };
+// Metres covered between stops (a crossing, a junction, a photo), how much
+// speed a gradient costs, and how many beats it buys.
+const METERS_PER_STOP: Record<ActivityKind, number> = { walk: 750, run: 1100, bike: 1400 };
+const GRADE_SPEED_PENALTY: Record<ActivityKind, number> = { walk: 3, run: 5, bike: 8 };
+const GRADE_HR_COST: Record<ActivityKind, number> = { walk: 260, run: 380, bike: 420 };
+// Heart rate as a line through pace: `base` bpm at `refKmh`, moving by
+// `perKmh` either side of it.
+const HR_MODEL: Record<ActivityKind, { base: number; perKmh: number; refKmh: number }> = {
+  walk: { base: 95, perKmh: 9, refKmh: 5 },
+  run: { base: 150, perKmh: 6, refKmh: 10.6 },
+  bike: { base: 105, perKmh: 2.2, refKmh: 18 },
+};
+// Cadence the same way, hinged on that kind's everyday pace: steps per minute
+// on foot, crank revolutions on a bike.
+const CADENCE_MODEL: Record<ActivityKind, { base: number; perMps: number }> = {
+  walk: { base: 108, perMps: 26 },
+  run: { base: 168, perMps: 6 },
+  bike: { base: 76, perMps: 2.4 },
+};
+const CALORIES_PER_MIN: Record<ActivityKind, number> = { walk: 4.6, run: 11.5, bike: 8.4 };
+const ACTIVITY_NAME: Record<ActivityKind, string> = { walk: "Walking", run: "Running", bike: "Cycling" };
 // How much faster the same effort goes by the end of the history.
 const FITNESS_SPEED_GAIN = 0.05;
 // And how many fewer beats per minute that pace costs by then.
 const FITNESS_HR_DROP_BPM = 7;
 
 function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedActivity; streams: ActivityStreams } {
-  const { route, local, progress } = ctx;
-  const { type } = route;
+  const { route, type, local, progress } = ctx;
 
   const startMs = utcFromLocal(local, route.place.timezone);
   // Northern-hemisphere summer: more daylight, faster, and hotter — the last of
@@ -270,9 +295,8 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
   const speedTarget =
     BASE_SPEED_MPS[type] * dayFactor * (1 + FITNESS_SPEED_GAIN * progress) * (1 + 0.03 * seasonal);
 
-  // Stops (crossings, junctions, a photo) every so often, which is what makes
-  // moving time differ from elapsed time.
-  const metersPerStop = type === "walk" ? 750 : 1400;
+  // Stopping every so often is what makes moving time differ from elapsed.
+  const metersPerStop = METERS_PER_STOP[type];
   const hrOffset = rng.gauss() * 3 - FITNESS_HR_DROP_BPM * progress + 4 * Math.max(seasonal, 0);
 
   const streams: ActivityStreams = { t_s: [], distance_m: [], speed_mps: [], hr_bpm: [], elevation_m: [], cadence_spm: [] };
@@ -285,7 +309,7 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
   // Heart rate is carried across samples and eased toward its target, because
   // it lags effort by a minute or two — the whole reason the heart-rate/pace
   // chart drops each activity's first five minutes.
-  let hr = (type === "walk" ? 88 : 96) + hrOffset;
+  let hr = HR_MODEL[type].base - 7 + hrOffset;
 
   for (let i = 0; i < points.length; i++) {
     const step = i === 0 ? 0 : metresBetween(points[i - 1], points[i]);
@@ -294,7 +318,7 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
 
     speedWander = speedWander * 0.85 + rng.gauss() * 0.15;
     // Climbing costs speed and buys heart rate; both scale with the gradient.
-    const speed = Math.max(0.4, speedTarget * (1 + speedWander * 0.12 - grade * (type === "walk" ? 3 : 8)));
+    const speed = Math.max(0.4, speedTarget * (1 + speedWander * 0.12 - grade * GRADE_SPEED_PENALTY[type]));
 
     const stopped = i > 0 && rng.float() < step / metersPerStop;
     const stopS = stopped ? rng.range(15, 55) : 0;
@@ -306,9 +330,9 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
     distanceM += step;
 
     const hrTarget =
-      (type === "walk" ? 95 + 9 * (speed * 3.6 - 5) : 105 + 2.2 * (speed * 3.6 - 18)) +
+      HR_MODEL[type].base + HR_MODEL[type].perKmh * (speed * 3.6 - HR_MODEL[type].refKmh) +
       hrOffset +
-      grade * (type === "walk" ? 260 : 420) +
+      grade * GRADE_HR_COST[type] +
       // Cardiac drift: the same pace costs a little more the longer it goes on.
       (elapsedS / 60) * 0.06;
     // Ease toward the target with a ~50 s time constant, then add sensor noise.
@@ -320,9 +344,13 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
     streams.hr_bpm.push(Math.round(hr + rng.gauss() * 1.6));
     streams.elevation_m.push(Math.round(elevationAt(...points[i]) * 10) / 10);
     streams.cadence_spm.push(
-      type === "walk"
-        ? Math.round(stopped ? 0 : 108 + (speed - 1.36) * 26 + rng.gauss() * 2)
-        : Math.round(stopped ? 0 : 76 + (speed - 5.1) * 2.4 + rng.gauss() * 3),
+      Math.round(
+        stopped
+          ? 0
+          : CADENCE_MODEL[type].base +
+            (speed - BASE_SPEED_MPS[type]) * CADENCE_MODEL[type].perMps +
+            rng.gauss() * (type === "bike" ? 3 : 2),
+      ),
     );
   }
 
@@ -339,12 +367,12 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
   // the longer stops but not the brief ones.
   const durationS = Math.round(movingS + stoppedS * 0.55);
   const steps =
-    type === "walk"
-      ? Math.round(streams.cadence_spm.reduce<number>((sum, c, i) => {
+    type === "bike"
+      ? null
+      : Math.round(streams.cadence_spm.reduce<number>((sum, c, i) => {
           const dt = i === 0 ? 0 : streams.t_s[i] - streams.t_s[i - 1];
           return sum + ((c ?? 0) * dt) / 60;
-        }, 0))
-      : null;
+        }, 0));
 
   const zoneBounds = [105, 125, 145, 165];
   const zones = [0, 0, 0, 0, 0];
@@ -361,7 +389,7 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
 
   const activity: NormalizedActivity = {
     garmin_activity_id: ctx.garminActivityId,
-    name: `${route.place.name} ${type === "walk" ? "Walking" : "Cycling"}`,
+    name: `${route.place.name} ${ACTIVITY_NAME[type]}`,
     type,
     start_time: new Date(startMs).toISOString(),
     start_time_local: `${local.y}-${pad(local.m + 1)}-${pad(local.d)}T${pad(local.h)}:${pad(local.min)}:00`,
@@ -379,7 +407,7 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
     elevation_loss_m: Math.round(loss * 10) / 10,
     min_elevation_m: Math.round(Math.min(...streams.elevation_m.map((v) => v ?? 0)) * 10) / 10,
     max_elevation_m: Math.round(Math.max(...streams.elevation_m.map((v) => v ?? 0)) * 10) / 10,
-    calories: Math.round((durationS / 60) * (type === "walk" ? 4.6 : 8.4) * rng.range(0.94, 1.06)),
+    calories: Math.round((durationS / 60) * CALORIES_PER_MIN[type] * rng.range(0.94, 1.06)),
     steps,
     avg_cadence_spm:
       Math.round((streams.cadence_spm.reduce<number>((sum, c) => sum + (c ?? 0), 0) / streams.cadence_spm.length) * 10) /
@@ -407,10 +435,16 @@ function buildActivity(ctx: ActivityContext, rng: Rng): { activity: NormalizedAc
 // ---------------------------------------------------------------------------
 
 /** Time of day an activity starts, in local wall-clock hours. */
+const START_HOUR_RANGE: Record<ActivityKind, { weekend: [number, number]; weekday: [number, number] }> = {
+  walk: { weekend: [10, 16], weekday: [17, 20] },
+  // Runs go out before the day starts, or straight after work.
+  run: { weekend: [8, 11], weekday: [17, 19.5] },
+  bike: { weekend: [9, 13], weekday: [16.5, 19] },
+};
+
 function startHour(type: ActivityKind, isWeekend: boolean, rng: Rng): { h: number; min: number } {
-  const hour = isWeekend
-    ? (type === "bike" ? rng.range(9, 13) : rng.range(10, 16))
-    : (type === "bike" ? rng.range(16.5, 19) : rng.range(17, 20));
+  const [from, to] = START_HOUR_RANGE[type][isWeekend ? "weekend" : "weekday"];
+  const hour = rng.range(from, to);
   return { h: Math.floor(hour), min: Math.floor((hour % 1) * 60) };
 }
 
@@ -455,16 +489,20 @@ export function generateDemoHistory(): { activity: NormalizedActivity; streams: 
     const count = rng.float() < (tripRoutes ? 0.45 : isWeekend ? 0.25 : 0.12) ? 2 : 1;
     for (let n = 0; n < count; n++) {
       const pool = tripRoutes ?? HOME_ROUTES;
-      // Bikes are a weekend and summer thing; walks happen whenever.
+      // Bikes are a weekend and summer thing; walks and runs happen whenever.
       const wantBike = rng.float() < 0.22 + (isWeekend ? 0.14 : 0) + Math.max(seasonal, 0);
       const candidates = pool.filter((r) => (wantBike ? r.type === "bike" : r.type === "walk"));
       const route = rng.weighted(candidates.length > 0 ? candidates : pool);
+      // Runs follow the same pedestrian network as walks, so they reuse the
+      // walking routes rather than needing snapped geometry of their own.
+      const type: ActivityKind = route.type === "walk" && rng.float() < RUN_SHARE ? "run" : route.type;
 
-      const { h, min } = startHour(route.type, isWeekend, rng);
+      const { h, min } = startHour(type, isWeekend, rng);
       out.push(
         buildActivity(
           {
             route,
+            type,
             local: { y: day.getFullYear(), m: month, d: day.getDate(), h: h + n * 3, min },
             progress,
             garminActivityId: FIRST_ACTIVITY_ID + out.length,
@@ -476,4 +514,87 @@ export function generateDemoHistory(): { activity: NormalizedActivity; streams: 
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Daily wellness metrics
+// ---------------------------------------------------------------------------
+
+// Steps taken over an ordinary day with no activity recorded — commuting,
+// shopping, pacing around the flat.
+const BASE_DAILY_STEPS: [number, number] = [2800, 5400];
+// Resting heart rate at the start of the history and how far the two years of
+// training pull it down; HRV moves the other way.
+const RESTING_HR_START = 58;
+const RESTING_HR_FITNESS_DROP = 6;
+const HRV_START_MS = 46;
+const HRV_FITNESS_GAIN_MS = 11;
+// How far the waking average heart rate sits above the resting one on a day
+// with nothing recorded, and how much a full day's training adds on top. The
+// gap is this wide because sleep is excluded: it is a day's average, not a
+// day-and-night one.
+const WAKING_HR_OVER_RESTING = 22;
+const WAKING_HR_PER_LOAD = 6;
+// The watch that records overnight HRV was bought a year into the history, so
+// that chart starts a year later than the others — which is what Garmin data
+// actually looks like, and gives the leading gap something to render.
+const HRV_HISTORY_DAYS = 365;
+
+/**
+ * Day-level wellness figures to match the generated history.
+ *
+ * Derived from the activities rather than invented beside them: the all-day
+ * step count is the day's recorded activity steps plus ordinary daily-life
+ * walking, so the total can never come out below what the activities alone
+ * already account for. Yesterday's training load leaks into today's resting
+ * heart rate and HRV, because that lag is the whole reason the charts are
+ * worth looking at.
+ */
+export function generateDemoDailyMetrics(
+  history: { activity: NormalizedActivity; streams: ActivityStreams }[],
+): DailyMetric[] {
+  const rng = new Rng(SEED + 1);
+
+  const stepsByDate = new Map<string, number>();
+  const movingMinutesByDate = new Map<string, number>();
+  for (const { activity } of history) {
+    const date = (activity.start_time_local ?? activity.start_time).slice(0, 10);
+    stepsByDate.set(date, (stepsByDate.get(date) ?? 0) + (activity.steps ?? 0));
+    movingMinutesByDate.set(date, (movingMinutesByDate.get(date) ?? 0) + activity.moving_duration_s / 60);
+  }
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - HISTORY_DAYS);
+
+  const metrics: DailyMetric[] = [];
+  let yesterdayLoad = 0;
+
+  for (let dayOffset = 0; dayOffset <= HISTORY_DAYS; dayOffset++) {
+    const day = new Date(start);
+    day.setDate(day.getDate() + dayOffset);
+    const date = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+    const progress = dayOffset / HISTORY_DAYS;
+
+    // A hard day yesterday costs a few beats and some variability today.
+    const load = Math.min((movingMinutesByDate.get(date) ?? 0) / 90, 1.5);
+    const restingHr =
+      RESTING_HR_START - RESTING_HR_FITNESS_DROP * progress + yesterdayLoad * 1.6 + rng.gauss() * 1.2;
+    const hrv = HRV_START_MS + HRV_FITNESS_GAIN_MS * progress - yesterdayLoad * 3.4 + rng.gauss() * 4;
+    // Today's own training shows up here, where yesterday's showed up above:
+    // an average over the waking day follows what the day was spent doing.
+    const wakingHr = restingHr + WAKING_HR_OVER_RESTING + load * WAKING_HR_PER_LOAD + rng.gauss() * 1.5;
+    yesterdayLoad = load;
+
+    metrics.push({
+      calendar_date: date,
+      total_steps: Math.round((stepsByDate.get(date) ?? 0) + rng.range(...BASE_DAILY_STEPS)),
+      resting_hr: Math.round(restingHr),
+      waking_avg_hr: Math.round(wakingHr),
+      hrv_last_night_avg:
+        dayOffset >= HISTORY_DAYS - HRV_HISTORY_DAYS ? Math.round(Math.max(20, hrv)) : null,
+    });
+  }
+
+  return metrics;
 }

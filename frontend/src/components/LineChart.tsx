@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SeriesPoint } from "../lib/stats";
 import { useElementWidth } from "../lib/useElementWidth";
 
@@ -14,13 +14,14 @@ interface LineChartProps {
   valueFormatter?: (value: number) => string;
   height?: number;
   labelEvery?: number;
+  /** How many points fit the card at once; the rest scroll off to the left. */
+  visiblePoints?: number;
 }
 
 const PADDING_LEFT = 40;
 const PADDING_TOP = 14;
 const PADDING_BOTTOM = 22;
 const PADDING_RIGHT = 16;
-const MIN_SLOT_WIDTH = 22;
 const FALLBACK_SLOT_WIDTH = 34;
 const GRID_STEPS = 4;
 // Once the cursor gets this close to the container's right edge, the tooltip
@@ -56,8 +57,15 @@ function LineKey({ color, dashed, width = 16 }: { color: string; dashed?: boolea
   );
 }
 
-export function LineChart({ series, valueFormatter = (v) => String(v), height = 220, labelEvery = 1 }: LineChartProps) {
+export function LineChart({
+  series,
+  valueFormatter = (v) => String(v),
+  height = 220,
+  labelEvery = 1,
+  visiblePoints,
+}: LineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -66,7 +74,7 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
   const labels = series[0]?.data.map((d) => d.label) ?? [];
   const slotWidth =
     availableWidth > 0 && pointCount > 0
-      ? Math.max(MIN_SLOT_WIDTH, (availableWidth - PADDING_LEFT - PADDING_RIGHT) / pointCount)
+      ? (availableWidth - PADDING_LEFT - PADDING_RIGHT) / Math.min(pointCount, visiblePoints ?? pointCount)
       : FALLBACK_SLOT_WIDTH;
   const plotWidth = pointCount * slotWidth;
   const chartWidth = PADDING_LEFT + plotWidth + PADDING_RIGHT;
@@ -77,6 +85,14 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
     allValues.length ? Math.min(...allValues) : 0,
     allValues.length ? Math.max(...allValues) : 1,
   );
+  const ticks = Array.from({ length: GRID_STEPS + 1 }, (_, i) => axisMin + ((axisMax - axisMin) / GRID_STEPS) * i);
+
+  // The most recent weeks are what the card is for, so the scroll starts
+  // pinned to the right edge and older history is reached by scrolling left.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [chartWidth]);
 
   function xFor(i: number): number {
     return PADDING_LEFT + i * slotWidth + slotWidth / 2;
@@ -115,14 +131,19 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
     const y = e.clientY - rect.top;
     setPointer({ x, y }); // CSS-pixel space, for positioning the HTML tooltip
 
-    // The SVG's viewBox coordinate space (used by xFor/PADDING_LEFT/SLOT_WIDTH)
-    // only matches CSS pixels 1:1 when the chart is rendered at its native
-    // width. It's scaled to fit its container (width="100%"), so convert
-    // before doing index math — otherwise the offset grows with mouse
-    // position as the two scales diverge.
-    const scaleX = chartWidth / rect.width;
-    const xInViewBox = x * scaleX;
-    const rawIndex = Math.round((xInViewBox - PADDING_LEFT - slotWidth / 2) / slotWidth);
+    // Left of the axis gutter there is no point on screen — the ones under it
+    // have scrolled off — so clamping there would report a hidden week.
+    if (x < PADDING_LEFT) {
+      setHoverIndex(null);
+      return;
+    }
+
+    // The SVG renders at its natural width inside the scroller, so viewBox
+    // units are CSS pixels — but the cursor is measured against the card,
+    // which shows a scrolled-to window of that width. Add the scroll offset
+    // before the index math, or every hover reads a week too recent.
+    const xInChart = x + (scrollRef.current?.scrollLeft ?? 0);
+    const rawIndex = Math.round((xInChart - PADDING_LEFT - slotWidth / 2) / slotWidth);
     setHoverIndex(Math.min(Math.max(rawIndex, 0), pointCount - 1));
   }
 
@@ -133,63 +154,74 @@ export function LineChart({ series, valueFormatter = (v) => String(v), height = 
 
   return (
     <div className="line-chart" ref={containerRef} onMouseMove={updatePointer} onMouseLeave={() => setHoverIndex(null)}>
-      <svg viewBox={`0 0 ${chartWidth} ${height}`} width="100%" height={height} preserveAspectRatio="xMinYMin meet">
-        {Array.from({ length: GRID_STEPS + 1 }, (_, i) => {
-          const value = axisMin + ((axisMax - axisMin) / GRID_STEPS) * i;
-          const y = yFor(value);
-          return (
-            <g key={i}>
-              <line className="chart-gridline" x1={PADDING_LEFT} x2={chartWidth - PADDING_RIGHT} y1={y} y2={y} />
-              <text className="chart-axis-value" x={PADDING_LEFT - 8} y={y + 3} textAnchor="end">
-                {formatAxisValue(value)}
+      <div className="chart-scroll" ref={scrollRef}>
+        <svg viewBox={`0 0 ${chartWidth} ${height}`} width={chartWidth} height={height} preserveAspectRatio="xMinYMin meet">
+          {ticks.map((value, i) => (
+            <line
+              key={i}
+              className="chart-gridline"
+              x1={PADDING_LEFT}
+              x2={chartWidth - PADDING_RIGHT}
+              y1={yFor(value)}
+              y2={yFor(value)}
+            />
+          ))}
+
+          {hovered && (
+            <line
+              className="chart-cursor"
+              x1={xFor(hoverIndex)}
+              x2={xFor(hoverIndex)}
+              y1={PADDING_TOP}
+              y2={PADDING_TOP + plotHeight}
+            />
+          )}
+
+          {series.map((s) => {
+            const last = lastKnownPoint(s.data);
+            return (
+              <g key={s.name}>
+                {segmentsFor(s.data).map((segment, si) => (
+                  <path
+                    key={si}
+                    d={segment.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    strokeDasharray={s.dashed ? "6 4" : undefined}
+                  />
+                ))}
+                {last && (
+                  <g>
+                    <circle className="chart-point-halo" cx={xFor(last.index)} cy={yFor(last.value)} r={5} />
+                    <circle cx={xFor(last.index)} cy={yFor(last.value)} r={4} fill={s.color} />
+                  </g>
+                )}
+              </g>
+            );
+          })}
+
+          {labels.map((label, i) =>
+            i % labelEvery === 0 ? (
+              <text className="chart-axis-label" key={i} x={xFor(i)} y={height - 6} textAnchor="middle">
+                {label}
               </text>
-            </g>
-          );
-        })}
+            ) : null,
+          )}
+        </svg>
+      </div>
 
-        {hovered && (
-          <line
-            className="chart-cursor"
-            x1={xFor(hoverIndex)}
-            x2={xFor(hoverIndex)}
-            y1={PADDING_TOP}
-            y2={PADDING_TOP + plotHeight}
-          />
-        )}
-
-        {series.map((s) => {
-          const last = lastKnownPoint(s.data);
-          return (
-            <g key={s.name}>
-              {segmentsFor(s.data).map((segment, si) => (
-                <path
-                  key={si}
-                  d={segment.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")}
-                  fill="none"
-                  stroke={s.color}
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  strokeDasharray={s.dashed ? "6 4" : undefined}
-                />
-              ))}
-              {last && (
-                <g>
-                  <circle className="chart-point-halo" cx={xFor(last.index)} cy={yFor(last.value)} r={5} />
-                  <circle cx={xFor(last.index)} cy={yFor(last.value)} r={4} fill={s.color} />
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        {labels.map((label, i) =>
-          i % labelEvery === 0 ? (
-            <text className="chart-axis-label" key={i} x={xFor(i)} y={height - 6} textAnchor="middle">
-              {label}
-            </text>
-          ) : null,
-        )}
+      {/* Outside the scroller so the scale stays readable however far back the
+          history is scrolled; opaque, so the lines slide behind it rather than
+          through the numbers. */}
+      <svg className="chart-axis-gutter" width={PADDING_LEFT} height={height}>
+        {ticks.map((value, i) => (
+          <text className="chart-axis-value" key={i} x={PADDING_LEFT - 8} y={yFor(value) + 3} textAnchor="end">
+            {formatAxisValue(value)}
+          </text>
+        ))}
       </svg>
 
       <div className="line-chart__legend">

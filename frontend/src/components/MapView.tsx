@@ -336,6 +336,7 @@ type TypeFilter = "all" | ActivityKind;
 const TYPE_FILTER_OPTIONS: { value: TypeFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "walk", label: "Walk" },
+  { value: "run", label: "Run" },
   { value: "bike", label: "Bike" },
 ];
 

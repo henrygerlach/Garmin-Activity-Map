@@ -1,10 +1,13 @@
 // garmin-connect is CJS; Node's static named-export detection for it is
 // unreliable under `tsx`, so import the whole module and destructure instead.
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import garminConnectPkg from "garmin-connect";
 const { GarminConnect } = garminConnectPkg;
 type GarminConnect = InstanceType<typeof garminConnectPkg.GarminConnect>;
 
-export type ActivityKind = "walk" | "bike";
+export type ActivityKind = "walk" | "run" | "bike";
 
 export interface NormalizedActivity {
   garmin_activity_id: number;
@@ -100,6 +103,10 @@ interface GarminActivityDetails {
 }
 
 const GC_API_BASE = "https://connectapi.garmin.com";
+
+// Beside the code rather than in the home directory: these tokens belong to
+// this checkout's `.env` account, and deleting the checkout should take them.
+const TOKEN_DIR = fileURLToPath(new URL("../.garmin-tokens", import.meta.url));
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 const DETAIL_REQUEST_DELAY_MS = 300;
@@ -112,8 +119,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const DEFAULT_NAME: Record<ActivityKind, string> = { walk: "Walk", run: "Run", bike: "Bike ride" };
+
 function normalizeType(typeKey: string): ActivityKind | null {
   const key = typeKey.toLowerCase();
+  if (key.includes("run")) return "run";
   if (key.includes("walk") || key.includes("hik")) return "walk";
   if (key.includes("cycl") || key.includes("bik")) return "bike";
   return null;
@@ -217,7 +227,7 @@ function normalize(activity: GarminActivitySummary, type: ActivityKind): Normali
 
   return {
     garmin_activity_id: activity.activityId,
-    name: activity.activityName || (type === "walk" ? "Walk" : "Bike ride"),
+    name: activity.activityName || DEFAULT_NAME[type],
     type,
     start_time: new Date(`${activity.startTimeGMT.replace(" ", "T")}Z`).toISOString(),
     // Wall-clock time at the location, with no zone attached — stored as a bare
@@ -262,9 +272,35 @@ export interface SyncCallbacks {
   onActivity: (activity: NormalizedActivity, streams: ActivityStreams | null) => Promise<void>;
 }
 
+/**
+ * Logs in, reusing the OAuth tokens from the last login when they still work.
+ *
+ * Garmin's SSO endpoint sits behind Cloudflare and rate-limits password logins
+ * hard: a handful within an hour earns a 429 that then blocks every attempt
+ * for a while, including the sync button. The tokens outlive that — the oauth1
+ * one is good for about a year, and the client renews the short-lived oauth2
+ * from it without touching SSO — so a password login should happen roughly
+ * once a year, not once per sync.
+ */
 export async function login(email: string, password: string): Promise<GarminConnect> {
   const gc = new GarminConnect({ username: email, password });
+
+  if (existsSync(join(TOKEN_DIR, "oauth1_token.json"))) {
+    gc.loadTokenByFile(TOKEN_DIR);
+    try {
+      // Cheapest authenticated call there is: proves the token still works,
+      // and renews the oauth2 half if it has expired.
+      await gc.client.get(`${GC_API_BASE}/userprofile-service/socialProfile`);
+      return gc;
+    } catch (error) {
+      // A rate limit says nothing about whether the token is good, and logging
+      // in again would only dig the hole deeper.
+      if (String(error).includes("(429)")) throw error;
+    }
+  }
+
   await gc.login();
+  gc.exportTokenToFile(TOKEN_DIR);
   return gc;
 }
 

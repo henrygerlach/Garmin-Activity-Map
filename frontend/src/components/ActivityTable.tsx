@@ -12,6 +12,7 @@ import { RouteGlyph } from "./RouteGlyph";
 
 const TYPE_LABEL: Record<Activity["type"], string> = {
   walk: "Walk",
+  run: "Run",
   bike: "Bike",
 };
 

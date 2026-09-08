@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DayActivity } from "../lib/stats";
 import { formatDistance } from "../lib/format";
 import { CALENDAR_LEVEL_COLORS } from "../lib/colors";
@@ -64,8 +64,15 @@ function levelFor(distanceM: number, thresholds: [number, number, number]): numb
 
 export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const availableWidth = useElementWidth(containerRef);
   const [hovered, setHovered] = useState<{ day: DayActivity; x: number; y: number } | null>(null);
+
+  // Recent weeks first; earlier years are reached by scrolling left.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [days.length]);
 
   if (days.length === 0) return null;
 
@@ -91,53 +98,55 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
 
   return (
     <div className="calendar-heatmap" ref={containerRef} onMouseLeave={() => setHovered(null)}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="xMinYMin meet">
-        {ROW_LABELS.map((label, row) =>
-          label ? (
-            <text className="chart-axis-value" key={row} x={0} y={TOP_PADDING + row * step + cellSize - 2}>
-              {label}
-            </text>
-          ) : null,
-        )}
-        {weeks.map((week, col) => {
-          const x = ROW_LABEL_WIDTH + col * step;
-          const firstDay = week.find((d): d is DayActivity => d !== null);
-          let monthLabel: string | null = null;
-          if (firstDay) {
-            const month = firstDay.date.getMonth();
-            if (month !== lastMonth) {
-              monthLabel = firstDay.date.toLocaleDateString(undefined, { month: "short" });
-              lastMonth = month;
+      <div className="chart-scroll" ref={scrollRef}>
+        <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} preserveAspectRatio="xMinYMin meet">
+          {ROW_LABELS.map((label, row) =>
+            label ? (
+              <text className="chart-axis-value" key={row} x={0} y={TOP_PADDING + row * step + cellSize - 2}>
+                {label}
+              </text>
+            ) : null,
+          )}
+          {weeks.map((week, col) => {
+            const x = ROW_LABEL_WIDTH + col * step;
+            const firstDay = week.find((d): d is DayActivity => d !== null);
+            let monthLabel: string | null = null;
+            if (firstDay) {
+              const month = firstDay.date.getMonth();
+              if (month !== lastMonth) {
+                monthLabel = firstDay.date.toLocaleDateString(undefined, { month: "short" });
+                lastMonth = month;
+              }
             }
-          }
-          return (
-            <g key={col}>
-              {monthLabel && (
-                <text className="chart-axis-value" x={x} y={TOP_PADDING - 5}>
-                  {monthLabel}
-                </text>
-              )}
-              {week.map((day, row) => {
-                if (!day) return null;
-                const y = TOP_PADDING + row * step;
-                const level = levelFor(day.distanceM, thresholds);
-                return (
-                  <rect
-                    key={row}
-                    x={x}
-                    y={y}
-                    width={cellSize}
-                    height={cellSize}
-                    rx={2}
-                    fill={CALENDAR_LEVEL_COLORS[level]}
-                    onMouseEnter={(e) => showTooltip(day, e)}
-                  />
-                );
-              })}
-            </g>
-          );
-        })}
-      </svg>
+            return (
+              <g key={col}>
+                {monthLabel && (
+                  <text className="chart-axis-value" x={x} y={TOP_PADDING - 5}>
+                    {monthLabel}
+                  </text>
+                )}
+                {week.map((day, row) => {
+                  if (!day) return null;
+                  const y = TOP_PADDING + row * step;
+                  const level = levelFor(day.distanceM, thresholds);
+                  return (
+                    <rect
+                      key={row}
+                      x={x}
+                      y={y}
+                      width={cellSize}
+                      height={cellSize}
+                      rx={2}
+                      fill={CALENDAR_LEVEL_COLORS[level]}
+                      onMouseEnter={(e) => showTooltip(day, e)}
+                    />
+                  );
+                })}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
 
       <div className="calendar-heatmap__legend">
         <span>Less</span>
