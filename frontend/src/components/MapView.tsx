@@ -282,11 +282,24 @@ function ActivityPolyline({ activity, isHighlighted, onHover, visitIndex }: Acti
 
   // Reordering JSX children doesn't reorder Leaflet's own SVG layer stack —
   // Leaflet manages that internally — so bring the layer forward explicitly
-  // whenever it becomes the highlighted one.
+  // whenever it becomes the highlighted one, and hand the promotion back when
+  // it stops being highlighted.
+  //
+  // The second half is what keeps a selected track visible. Promoting alone is
+  // permanent, so every line the cursor has ever crossed — on the map, or as a
+  // table row on the way to the one being clicked — stays stacked above the
+  // selection and buries it. It shows up as clicking a far-off row: the camera
+  // takes a moment to fly there, the pointer has moved over other rows by the
+  // time it lands, and the track that was brought to front on hover is now
+  // underneath them. Clicking something already on screen looks fine only
+  // because there is nothing to see it get buried by yet.
   useEffect(() => {
-    if (isHighlighted) {
-      layerRef.current?.bringToFront();
-    }
+    if (!isHighlighted) return;
+    const layer = layerRef.current;
+    layer?.bringToFront();
+    return () => {
+      layer?.bringToBack();
+    };
   }, [isHighlighted]);
 
   return (
