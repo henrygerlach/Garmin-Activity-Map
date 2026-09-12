@@ -337,11 +337,12 @@ function FlyToSelected({ activities, selectedId }: { activities: Activity[]; sel
 interface ActivityPolylineProps {
   activity: Activity;
   isHighlighted: boolean;
+  isSelected: boolean;
   onHover: (id: string | null) => void;
   visitIndex: VisitIndex;
 }
 
-function ActivityPolyline({ activity, isHighlighted, onHover, visitIndex }: ActivityPolylineProps) {
+function ActivityPolyline({ activity, isHighlighted, isSelected, onHover, visitIndex }: ActivityPolylineProps) {
   const layerRef = useRef<L.Polyline>(null);
   // How many activities pass the point of this track under the cursor. Kept here rather
   // than in the parent so tracking the pointer only re-renders this one line —
@@ -353,27 +354,34 @@ function ActivityPolyline({ activity, isHighlighted, onHover, visitIndex }: Acti
     return onTrack ? visitIndex.countAt(onTrack[0], onTrack[1]) : 0;
   };
 
-  // Reordering JSX children doesn't reorder Leaflet's own SVG layer stack —
-  // Leaflet manages that internally — so bring the layer forward explicitly
-  // whenever it becomes the highlighted one, and hand the promotion back when
-  // it stops being highlighted.
-  //
-  // The second half is what keeps a selected track visible. Promoting alone is
-  // permanent, so every line the cursor has ever crossed — on the map, or as a
-  // table row on the way to the one being clicked — stays stacked above the
-  // selection and buries it. It shows up as clicking a far-off row: the camera
-  // takes a moment to fly there, the pointer has moved over other rows by the
-  // time it lands, and the track that was brought to front on hover is now
-  // underneath them. Clicking something already on screen looks fine only
-  // because there is nothing to see it get buried by yet.
+  // Leaflet writes `className` out once, when it first creates the path
+  // element; a later change to pathOptions goes through setStyle, which
+  // rewrites the stroke attributes and leaves the class alone — so the
+  // highlight class has to be put on the element by hand.
   useEffect(() => {
-    if (!isHighlighted) return;
+    layerRef.current?.getElement()?.classList.toggle("trace--hi", isHighlighted);
+  }, [isHighlighted]);
+
+  // Reordering JSX children doesn't reorder Leaflet's own SVG layer stack —
+  // Leaflet manages that internally — so the selected track is promoted
+  // explicitly, and hands the promotion back when it stops being selected.
+  // Promoting alone is permanent, so otherwise every track ever selected would
+  // stay stacked above the one selected now and bury it.
+  //
+  // The selection and never the hover: bringToFront moves the element within
+  // the DOM, which the browser reads as the node under the cursor going away.
+  // The mouseout that follows clears the hover, which demotes the track again
+  // and uncovers whatever it overlaps, which is then hovered and promoted in
+  // its turn — two tracks trading places for as long as the cursor rests on a
+  // stretch they share.
+  useEffect(() => {
+    if (!isSelected) return;
     const layer = layerRef.current;
     layer?.bringToFront();
     return () => {
       layer?.bringToBack();
     };
-  }, [isHighlighted]);
+  }, [isSelected]);
 
   return (
     <Polyline
@@ -384,11 +392,16 @@ function ActivityPolyline({ activity, isHighlighted, onHover, visitIndex }: Acti
         // presentation attribute, which is not a CSS context, so a var() token
         // would never resolve there. The class lets App.css own the hue — and
         // so lets it change with the appearance.
-        className: `trace trace--${activity.type}${isHighlighted ? " trace--hi" : ""}`,
+        className: `trace trace--${activity.type}`,
         weight: isHighlighted ? 6 : 4,
         opacity: isHighlighted ? 1 : 0.7,
       }}
       eventHandlers={{
+        // Leaflet opens a bound tooltip on click as well as on hover, and that
+        // one stays up — the camera flies off to the selected track, so the
+        // pointer never leaves the line in a way that would close it again.
+        // Registered after Leaflet's own handler, so this runs last and wins.
+        click: () => layerRef.current?.closeTooltip(),
         mouseover: (e) => {
           onHover(activity.id);
           setVisitsHere(countVisitsAt(e.latlng));
@@ -725,6 +738,7 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
                 key={activity.id}
                 activity={activity}
                 isHighlighted={activity.id === hoveredId || activity.id === selectedId}
+                isSelected={activity.id === selectedId}
                 onHover={onHover}
                 visitIndex={visitIndex}
               />

@@ -912,6 +912,14 @@
   stroke: var(--bike-hi);
 }
 
+/* Chrome focuses an SVG path when it is clicked and draws its own ring around
+   it — a blue box around the track's bounding rect, which is neither the shape
+   nor anything the click did. Nothing is lost by dropping it: the tracks carry
+   no tabindex, so focus never reaches them from the keyboard. */
+.trace:focus {
+  outline: none;
+}
+
 /* ── Narrow screens ──────────────────────────────────────────────────────── */
 /* Below this, side-by-side leaves neither pane usable: the list stacks on top
    at a capped height and the map takes the rest. */
