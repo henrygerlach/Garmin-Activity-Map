@@ -25,4 +25,5 @@ backend/.garmin-tokens/
 graphify-out/
 .claude/
 .serena/
+prompts/
 
