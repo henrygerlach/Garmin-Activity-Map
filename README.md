@@ -1,6 +1,6 @@
 # Garmin Activity Map
 
-**Every walk, run and bike ride I've logged on Garmin, drawn on one map — and the two years of sensor data behind them turned into an answer to "am I actually getting fitter?"**
+**A web app that draws every walk, run and bike ride ever logged on Garmin onto one map, with a statistics tab showing the progression behind them.**
 
 ![React](https://img.shields.io/badge/React_19-20232a?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -10,86 +10,42 @@
 ![Express](https://img.shields.io/badge/Express-000000?style=flat-square&logo=express&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ecf8e?style=flat-square&logo=supabase&logoColor=white)
 ![Postgres](https://img.shields.io/badge/PostgreSQL-4169e1?style=flat-square&logo=postgresql&logoColor=white)
-![Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-d97757?style=flat-square&logo=anthropic&logoColor=white)
+![Coded with Claude Code](https://img.shields.io/badge/Coded_with-Claude_Code-d97757?style=flat-square&logo=anthropic&logoColor=white)
 
-![Every walk and ride, drawn over Copenhagen](docs/map.jpg)
+> **I did not write this code — Claude Code did, all of it.** I gave it the tech stack and a brief, it built a first draft, and from there we iterated: until the app had every feature I actually needed, and until it stopped looking like generated output and started looking like a real product.
 
-|  |  |
-|---|---|
-| **What it is** | A personal webapp that syncs my Garmin Connect history into Postgres, maps every route, and derives fitness trends from the per-point sensor streams. |
-| **Who it's for** | Me. I built it because Garmin Connect won't show me all my routes on one map, and won't tell me whether a given pace costs fewer heartbeats than it did last year. |
-| **Status** | In daily use. It launches from Spotlight, I press **Update** after most walks, and the charts are the reason I keep pressing it. |
-| **Stack** | React 19 · TypeScript · Vite · Leaflet · Express · Supabase (local Postgres) · zero charting libraries — every chart is hand-rolled SVG. |
-| **How it was built** | Designed, specified and directed by me; implemented with **[Claude Code](https://claude.com/claude-code)**. The architecture, the data model, the algorithms below and every product decision were mine to make and defend. |
+![The map view](docs/map.jpg)
 
-**Time-lapse mode** replaying the first sixty days at 1× — tracks are drawn as they were logged and stay on the map, and the camera follows whatever is being drawn:
+![The statistics tab](docs/statistics.jpg)
 
-![Time-lapse of the first sixty days of logging](docs/timelapse.gif)
-
-![The top of the statistics tab](docs/statistics.jpg)
-
-> Screenshots use a synthetic demo history, not my own — I'd rather not publish my home address or my real training log. See [Demo data](#demo-data) for how it's generated, which is itself one of the more interesting parts of the project.
-
----
-
-## Engineering notes
-
-The parts that were actually hard. Each links to the code.
-
-**Route-frequency map** — [`routeFrequency.ts`](frontend/src/lib/routeFrequency.ts)
-A route walked ten times used to render as ten stacked semi-transparent lines, which reads as noise. Consecutive track points are snapped to a 30 m grid and deduplicated into segments carrying a visit count, so the same path draws once, weighted by how often I've been there. A segment's drawn position is the *average* of every real point that landed in its two cells, so the line keeps its true shape instead of going blocky. The cell size started at 15 m and was widened after real data showed a single trail still splitting into parallel lines. This replaced a `leaflet.heat` overlay that looked impressive and told me nothing.
-
-**Hover "how often have I been here?"** — [`visitCounts.ts`](frontend/src/lib/visitCounts.ts)
-Hovering any point on the map reports how many of the currently-visible activities pass within ~25 m. Naïve implementation is O(points × activities) per mouse move. Instead: a spatial grid at half the query radius, unioning the 5×5 block around the cursor — so a track 5 m away but on the far side of a cell boundary is still counted, and the fuzz stays bounded at ~40 m. The index is built lazily on first query rather than up front, so changing a filter stays instant.
-
-**Time-lapse camera** — [`MapView.tsx`](frontend/src/components/MapView.tsx)
-The naïve version — fit the camera to everything drawn so far — pulls back until a year of walking is an unreadable smudge. This one frames the current day's track together with everything already drawn within ~25 km of it: well above the span of a city's walking routes, well below the distance to the next city. So a new walk in a familiar city shows the city; a trip elsewhere flies there at the same scale. It aims wider than the cluster so the cluster must grow appreciably before the camera re-aims — a handful of moves per year, not one per day — and drawing pauses while the camera pans, so tracks are never painted across a moving map.
-The scrubber cursor is a **date, not an index**, which is what makes changing a filter mid-playback hold your position instead of teleporting; a date that falls outside a narrowed range parks on the nearest end and returns when the range widens again.
-
-**"Am I getting fitter?", done properly** — [`paceHr.ts`](frontend/src/lib/paceHr.ts)
-Average speed and average heart rate both move for reasons that aren't fitness. Two derived metrics do better:
-- *Metres per heartbeat* — distance ÷ beats spent moving. One number, rising means more ground for the same cardiac work.
-- *Heart rate against pace* — every sensor sample binned by the pace it was recorded at, one line per quarter. A line sitting below an earlier one means that pace now costs fewer bpm. This is the like-for-like comparison. The first five minutes of each activity are dropped because heart rate lags pace at the start and would drag every band down.
-
-The README states the confounders rather than hiding them: summer heat and hills both raise heart rate on their own, so a season-to-season difference isn't purely fitness. The card only renders once there are two quarters to compare.
-
-**Schema split under a real payload constraint** — [`supabase/migrations/`](supabase/migrations/)
-The frontend selects every column of `activities` to draw the map and the table. Inlining the per-point sensor series would have tripled the page-load payload for data only the statistics tab reads, so the streams live in their own `activity_streams` table as parallel arrays index-aligned with the track.
-
-**A wellness sync that heals itself** — [`wellness.ts`](backend/src/wellness.ts)
-Steps, resting heart rate and HRV come from three undocumented Garmin range endpoints that each refuse a window longer than 28 days, so the sync walks the history in 28-day chunks and merges the three responses by calendar date. Garmin publishes a resting, a minimum and a maximum heart rate for a day but no average, so that one is computed from the ~2-minute samples the watch records, minus the night: eight hours near the resting rate pull the mean down 6-8 bpm and bury what the day itself cost. Two nights touch one calendar day — the one ending that morning and the one starting that evening — so both windows come out, and days Garmin recorded no sleep for need no window, because those are the nights the watch was off and there are no small-hours samples to remove either. Garmin keeps those samples for about four months and then drops them, so that one series starts where my archive does and grows from every sync since. It starts a week before the newest stored day, because today's step count and last night's resting HR and HRV all land late; days Garmin has nothing for are never written, so the years before I owned the watch are asked once and then skipped forever. That is why there is no separate backfill script: the same request handles the first run and the daily one.
-
-**Getting a macOS Spotlight launcher past TCC** — [`launcher.c`](scripts/launcher.c)
-I wanted to start the whole stack (Docker, Supabase, both dev servers) from Spotlight. A script-based `.app` bundle executable is run by macOS through `/bin/bash`, so TCC attributes file access to `com.apple.bash` and a Full Disk Access grant on the app never matches — reads under `~/Documents` fail with exit 126 and no visible error. The fix is a compiled Mach-O stub that forks the helper script as a **child** rather than `exec`ing it, so the child inherits the app's code identity as its responsible process and the grant applies. Every step notifies via `osascript`, because nobody watches a log file they launched from Spotlight.
-
-**Code comments explain *why*.** The excerpts above are lifted from the source almost verbatim — constants carry the reasoning that chose them. That's deliberate, and it's how I'd want a teammate to read this repo six months from now.
+> The screenshots use a synthetic demo history rather than my own, since I'd rather not publish my home address or my real training log.
 
 ---
 
 ## Features
 
 ### Map
-- Blue for walks, purple for bike rides. Hovering a line (on the map or in the table) shows Date, Distance, moving speed, and Avg. HR, and lifts it above the rest in a lighter tint so it stands out among hundreds of overlapping tracks.
-- The tooltip also reports how often I've passed that exact point (see [visit index](#engineering-notes)).
-- Filters: activity type (All / Walk / Run / Bike) and date range (All time / 30 / 90 days / 12 months).
-- **Frequency map** toggle collapses the individual paths into one line per route, weighted by how often I've travelled it, with a legend showing the busiest count.
-- **Time-lapse mode** replays the history day by day. Playback speed 0.25×–2×, changeable mid-run; 1× puts a year of logging past in about twenty seconds. Starts at half speed, because at full speed a walk somewhere new goes by between glances. Enabling it rewinds but *doesn't* auto-play, so ticking the box never yanks the map away from what you were looking at.
 
-### History table
-Sidebar listing every activity — date, distance, moving time, speed, average HR. Sortable columns; clicking a row pans the map to that activity and highlights it, switching to the Map tab if needed.
+Every activity is drawn as its own trace over a low-saturation Carto basemap, so the traces are the brightest thing on screen rather than the roads. Walks are vermilion, runs violet, rides teal — not blue, because on a map blue is water.
+
+- **Hover** a trace, on the map or in the sidebar, and it lifts above the mass of overlapping lines in a lighter tint of its own hue, with date, distance, moving speed and average HR. The tooltip also reports how many times I've passed that exact point.
+- **Filter** by activity type and date range.
+- **Frequency map.** This started as an ordinary heatmap, which looked good and said nothing — after a few hundred activities everything is red. It now collapses overlapping paths into one line per route, coloured and weighted by how many activities that line stands for.
+- **Time-lapse** replays the history day by day from the first activity logged, drawing one after the other. The camera follows the day being drawn rather than fitting everything drawn so far, which would only zoom further out as the years pile up.
+
+![Time-lapse replay](docs/timelapse.gif)
+
+### Activity list
+
+Every activity in a sortable sidebar, each row carrying a **miniature of its own GPS trace** — longitude scaled by cos(latitude) so the silhouette stays true and routes are recognisable by shape. Clicking a row flies the map to it.
 
 ### Statistics
-- **Tiles:** total activities, distance walked / ran / cycled, time moving, longest walk / run / ride, total climb, all-day steps, and the latest resting heart rate and overnight HRV with their 30-day averages.
-- **Calendar heatmap** of daily activity, GitHub-style.
-- **Weekly volume**, steps and running/cycling distance, across the full history. Steps are Garmin's all-day totals, not the steps taken during an activity — a day of errands counts.
-- **Heart rate awake and at rest**, and **HRV** — weekly averages of Garmin's overnight readings, with the waking heart rate averaged from the watch's own two-minute samples, sleep excluded.
-- **Speed and heart-rate progression** over time, walk vs. run vs. bike, with GPS-glitch outliers (walking "indoors") excluded from weekly averages.
-- **Efficiency progression** — weekly metres per heartbeat.
-- **Heart rate against pace** — the like-for-like fitness chart described above.
-- **Activity patterns** by day of week and hour of day.
+
+Twelve summary tiles, then a column of charts: a GitHub-style activity calendar, weekly volume, steps, resting heart rate and HRV, speed and heart-rate progression per activity type, and activity patterns by weekday and hour.
 
 ### Sync
-An **Update** button pulls new activities from Garmin Connect, shows how long ago the last sync ran (persisted across reloads), and surfaces login/sync failures as readable messages rather than raw error strings.
+
+One **Sync** button. It pulls new activities from Garmin Connect, reports how long ago the last sync ran, and surfaces login failures as sentences rather than stack traces.
 
 ---
 
@@ -103,51 +59,71 @@ backend/   Express + tsx        ──writes─> Supabase (service role, sole wr
 supabase/  Local Postgres via Docker, CLI-managed migrations
 ```
 
-- **`frontend/`** — React + TypeScript, map via Leaflet / react-leaflet, charts hand-rolled as responsive SVG (no chart library). Reads activities directly from Supabase with a read-only anon key.
-- **`backend/`** — a small local Express server. `POST /api/sync` logs into Garmin Connect, fetches new walk/run/bike activities and their GPS tracks, then the daily wellness figures, and writes them to Supabase with the service role key. It is the only writer; the frontend never holds write access.
-- **`supabase/`** — Supabase CLI project (local Postgres in Docker). Three tables, all public-read:
-  - `activities` — one row per activity: Garmin's summary figures (distance, durations, speeds, heart rate, elevation, calories, steps, cadence, HR zones, local start time and location) plus a simplified `[[lat, lng], ...]` track.
-  - `activity_streams` — per-point sensor series (time, distance, speed, heart rate, elevation, cadence) as parallel arrays index-aligned with that activity's track.
-  - `daily_metrics` — one row per calendar day: all-day step total, resting heart rate, waking average heart rate, overnight HRV average. Keyed by the date alone, because these are wall-clock days from the watch rather than instants.
-
-**Why a backend at all?** Garmin has no official public API. Browser-side calls would expose credentials and hit CORS, so a small local server is the only thing that talks to Garmin.
+- **`frontend/`** — React + TypeScript, Leaflet via react-leaflet, charts as hand-rolled SVG. Reads Supabase directly with a read-only anon key.
+- **`backend/`** — a small local Express server. `POST /api/sync` logs into Garmin Connect, fetches new activities and their GPS tracks, then the daily wellness figures, and writes them with the service role key. It is the only writer; the frontend never holds write access.
+- **`supabase/`** — local Postgres in Docker, three public-read tables:
+  - `activities` — one row per activity: Garmin's summary figures plus a simplified `[[lat, lng], …]` track.
+  - `activity_streams` — per-point sensor series as parallel arrays, index-aligned with the track. Split out because the frontend selects every activity column to draw the map, and inlining the streams would have tripled the page-load payload for data only the statistics tab reads.
+  - `daily_metrics` — one row per calendar day: steps, resting heart rate, waking average heart rate, overnight HRV. Keyed by date alone, because these are wall-clock days from a watch rather than instants.
 
 Everything runs locally. Nothing is deployed — this is a tool, not a product.
 
 ---
 
-## Setup
+## How it was built
 
-Prerequisites: Node.js, Docker (for local Supabase), Supabase CLI (`brew install supabase/tap/supabase`).
+[Claude Code](https://claude.com/claude-code) wrote all of the code, driven through a wrapper and a handful of skills, each doing one job:
 
-1. Copy `.env.example` to `.env` and fill in `GARMIN_EMAIL` / `GARMIN_PASSWORD`.
-2. Start local Supabase and apply the schema:
-   ```bash
-   supabase start
-   supabase db reset
-   ```
-   `supabase status` prints the local `API_URL`, `ANON_KEY` and `SERVICE_ROLE_KEY` — copy those into `.env` (see `.env.example`).
-3. Install dependencies:
-   ```bash
-   (cd backend && npm install)
-   (cd frontend && npm install)
-   ```
-4. Run both dev servers, in separate terminals:
-   ```bash
-   (cd backend && npm run dev)   # http://127.0.0.1:8788
-   (cd frontend && npm run dev)  # http://localhost:5173
-   ```
-5. Open http://localhost:5173 and press **Update**. The first sync backfills the full history and takes a while — Garmin is called once per activity, with a delay between calls to stay under rate limits. Later syncs only fetch what's missing, so they're fast.
-
-`supabase stop` shuts the local stack down.
+| Skill | What it did here |
+|---|---|
+| **Headroom** and **Graphify** | Token reduction. Headroom compressed tool output and retrieved it on demand; Graphify turned the repo into a dependency graph instead of a pile of file reads. |
+| **Ponytail** | Minimalism. Stop at the first solution that holds, no speculative abstraction, no config for a value that never changes. |
+| **Frontend-Design** | Keeping the frontend clear of AI slop — one token file, a documented type scale, contrast ratios written next to the tokens that have to hold them. |
+| **Conventional-Commits** | Commit discipline. `git log --oneline` reads as a changelog: `feat(map)`, `fix(stats)`, `style(frontend)`. |
 
 ---
 
-## Scripts
+## Setup
+
+Prerequisites: Node.js, Docker, Supabase CLI (`brew install supabase/tap/supabase`).
+
+```bash
+cp .env.example .env          # add GARMIN_EMAIL / GARMIN_PASSWORD
+supabase start && supabase db reset
+(cd backend  && npm install && npm run dev)   # http://127.0.0.1:8788
+(cd frontend && npm install && npm run dev)   # http://localhost:5173
+```
+
+`supabase status` prints the local `API_URL`, `ANON_KEY` and `SERVICE_ROLE_KEY` for `.env`. Then open the app and press **Sync** — the first run backfills the full history slowly, since Garmin is called once per activity with a delay to stay under rate limits. Later syncs only fetch what's missing. `supabase stop` shuts it down.
+
+<details>
+<summary><strong>Spotlight launcher</strong> (macOS)</summary>
+
+Two `.app` bundles in `~/Applications` start and stop the whole stack — Supabase, backend, frontend, browser — from Spotlight, with each step reported as a notification.
+
+1. Create the two bundles, each with a `Contents/MacOS/` directory and a `Contents/Info.plist` whose `CFBundleExecutable` matches the app name:
+
+   ```
+   ~/Applications/Garmin Activity Map.app/
+   ~/Applications/Stop Garmin Activity Map.app/
+   ```
+
+2. Set `PROJECT_DIR` in `scripts/build-launchers.sh`, `scripts/start-app.sh` and `scripts/stop-app.sh` to wherever the repo lives, and the `PATH` line in `start-app.sh` to your Node install — a Spotlight launch doesn't source `~/.zshrc`.
+3. Run `scripts/build-launchers.sh`. It compiles `scripts/launcher.c` into each bundle's executable and ad-hoc signs the app.
+4. Grant both apps Full Disk Access under System Settings → Privacy & Security, so they can read the project under `~/Documents`.
+
+The executable is compiled C rather than a shell script because a script-based `.app` is run through `/bin/bash`, and macOS then attributes file access to `com.apple.bash` — the Full Disk Access grant on the app never matches, and reads fail with exit 126 and no visible error. The stub *forks* the helper script instead of `exec`ing it, so the child inherits the app's own code identity and the grant applies.
+
+Re-run `scripts/build-launchers.sh` after changing `launcher.c` or moving the project.
+
+</details>
+
+<details>
+<summary><strong>Scripts</strong></summary>
 
 | Command | Directory | What it does |
 |---|---|---|
-| `npm run dev` | `backend/`, `frontend/` | Dev servers |
+| `npm run dev` | both | Dev servers |
 | `npm run backfill` | `backend/` | Re-fetch sensor streams for activities synced before those columns existed |
 | `npm run seed:demo` | `backend/` | Replace the DB with the synthetic demo history |
 | `npm run seed:restore` | `backend/` | Restore the real history from the local backup |
@@ -155,29 +131,14 @@ Prerequisites: Node.js, Docker (for local Supabase), Supabase CLI (`brew install
 | `npm run typecheck` | `backend/` | `tsc --noEmit` |
 | `npm run lint` | `frontend/` | oxlint |
 
-### Backfilling sensor data
+`backfill` is deliberately separate from **Sync**: a routine sync stops at the first page of activities it already knows, which is right for an incremental update and exactly wrong for a backfill that must walk the whole history. It's safe to re-run — it skips whatever already has streams.
 
-`npm run backfill` re-fetches every activity already in the database that has no sensor streams, filling in the per-point series and the extra summary fields.
-
-It's deliberately separate from **Update**: a routine sync stops as soon as it hits a page of activities it already knows about — right for an incremental update, exactly wrong for a backfill, where every activity already exists and the whole history must be walked. Safe to re-run; it skips whatever already has streams, so an interrupted or rate-limited run picks up where it stopped.
+</details>
 
 ---
 
 ## Demo data
 
-`npm run seed:demo` replaces the database with a synthetic history so the app can be screenshotted and recorded without publishing a real home address or training log. `npm run seed:restore` puts the real data back.
+`npm run seed:demo` replaces the database with a synthetic history so the app can be screenshotted without publishing a real home address or training log; `npm run seed:restore` puts the real data back from a gitignored local backup.
 
-The seed backs up the real rows to `backend/.demo-backup.json` (gitignored) before wiping, which is what makes it safe to run against a working database — restoring is a local file copy, not a fresh Garmin sync and backfill. Running the seed twice keeps the existing backup rather than overwriting it with the synthetic rows it would then be reading.
-
-**The generated history is built to exercise the app, not to fill tables.** Two years of walking, running and cycling around Copenhagen, plus two trips away so the time-lapse camera has somewhere to fly to:
-- Routes follow real streets and are repeated with realistic GPS scatter, so the frequency layer has something to merge.
-- Heart rate follows pace with a lag and a slow downward drift, so the efficiency and HR-against-pace charts show a real trend.
-- Activity days cluster into streaks and thin out over winter, so the calendar heatmap looks like a habit rather than a coin flip.
-- Every summary figure is derived from the generated sensor streams, so tiles, charts and tracks all agree.
-- Daily steps, heart rate and HRV follow the training: a hard day yesterday costs a few beats and some variability today, and the whole year trends the healthy way. Only the most recent year has HRV, because that is how a watch upgrade looks in the data.
-
-Deterministic apart from its end date, which follows today so the streak tile and calendar stay current.
-
-**Route geometry** is hand-placed corners in `demoRoutes.ts`, resolved into the actual streets and footpaths between them by `npm run snap-routes` and committed as `demoRouteGeometry.json`. Seeding therefore stays offline and deterministic — a routing service in the seed path would make every run depend on someone else's uptime — and only that script needs re-running when a route changes. It uses the OpenStreetMap community's public Valhalla instance (no API key, with pedestrian and bicycle costings), so a walking loop follows the paths through a park rather than the ring road around it. A repair pass pulls corners that sit off the walkable network — in the middle of a harbour, usually — onto the nearest spot reachable from both neighbours, which is what stops a 4 km loop from routing 60 km round the long way to a bridge.
-
-> ⚠️ Don't press **Update** while the demo data is loaded — it would sync real Garmin activities into the middle of it.
+> ⚠️ Don't press **Sync** while the demo data is loaded — it would sync real Garmin activities into the middle of it.
