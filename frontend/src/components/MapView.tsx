@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Polyline, Tooltip, useMap } from "react-leaflet";
 import type { Activity, ActivityKind } from "../types";
 import { formatDate, formatDistance, formatSpeed, formatHr, movingSpeedMps } from "../lib/format";
-import { ACTIVITY_COLORS, ACTIVITY_HIGHLIGHT_COLORS, FREQUENCY_GRADIENT_CSS } from "../lib/colors";
+import { FREQUENCY_GRADIENT_CSS } from "../lib/colors";
 import { DATE_RANGE_OPTIONS, DATE_RANGE_LABELS, filterByDateRange, type DateRangeOption } from "../lib/dateRange";
 import { createVisitIndex, nearestPointOnTrack, type VisitIndex } from "../lib/visitCounts";
 import { FrequencyLayer } from "./FrequencyLayer";
@@ -33,6 +33,49 @@ const MAX_CLUSTER_PASSES = 6;
 
 const CAMERA_FLIGHT_S = 0.6;
 
+// The camera flights and the tile fades are JavaScript, so the reduce-motion
+// rule in index.css — which can only reach CSS transitions — never sees them.
+// Read once at module load: this is a system setting, not something that
+// changes mid-session in a way worth re-rendering the map for.
+const REDUCE_MOTION =
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Leaflet's flyTo options, collapsed to an instant jump under reduce motion. */
+const flightOptions = REDUCE_MOTION ? { animate: false } : { animate: true, duration: CAMERA_FLIGHT_S };
+
+// Carto's basemaps rather than standard OSM tiles: they keep paths, parks and
+// water legible but at a fraction of the saturation, so the traces are the
+// brightest thing on the map instead of competing with the roads. Voyager for
+// the light appearance, dark_all for the dark one — cartography drawn for a
+// dark surface, where the water and the road casings are chosen rather than
+// whatever a filter turns the light tiles into.
+//
+// Carto serves these anonymously only up to an allowance, past which every tile
+// comes back stamped "API KEY REQUIRED"; `key` is the parameter it honours, and
+// dark_all is gated behind it outright.
+const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY;
+const basemapUrl = (style: string) =>
+  `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png` +
+  (CARTO_KEY ? `?key=${CARTO_KEY}` : "");
+const BASEMAP_LIGHT = basemapUrl("voyager");
+const BASEMAP_DARK = basemapUrl("dark_all");
+
+// The appearance has to be read in JS rather than in a media query: this picks
+// between two tile sources, and CSS cannot change where an image is fetched
+// from. Leaflet caches loaded tiles on the layer, so the switch also has to
+// remount the layer rather than only swap its url.
+const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+function useDarkAppearance() {
+  return useSyncExternalStore(
+    (onChange) => {
+      darkQuery.addEventListener("change", onChange);
+      return () => darkQuery.removeEventListener("change", onChange);
+    },
+    () => darkQuery.matches,
+  );
+}
+
 // A beat of stillness after the camera lands, before the reveal picks up again.
 // Arriving somewhere new and immediately having tracks appear gives no moment
 // to register where "here" is — the eye is still catching up with the move
@@ -52,7 +95,7 @@ const CAMERA_HOLD_MS = 900;
 // fitted to the map's aspect ratio, so one axis ends up with slack to spare and
 // the other with none — and the one with none is where the next day's growth
 // escapes.
-const FRAME_SLACK = 0.6;
+const FRAME_SLACK = 0.35;
 // Floor for a cluster too small for a fraction of its span to mean anything —
 // the history opens on a single walk barely a hundred metres across, where 60%
 // of nothing is still nothing. Roughly 90 m, which frames that walk and the
@@ -61,6 +104,14 @@ const FRAME_SLACK = 0.6;
 // headroom takes back over as soon as the routes spread at all, so the cost is
 // only a few extra camera moves in the first week.
 const MIN_FRAME_SLACK_DEG = 0.0008;
+
+// How far past the day's own tracks the frame may reach to take neighbours in.
+// Cluster membership is transitive, so a corridor of commutes chains one 25 km
+// hop to the next until the frame spans a whole region and the track actually
+// being drawn is a hair across it. The cluster is still worth having — it keeps
+// a filled-in city whole — but only out to the distance a viewer can still make
+// sense of, and what is being drawn today always stays in frame.
+const MAX_FRAME_REACH_KM = 12;
 
 // The camera also re-aims when the frame has become this much wider than what
 // it's meant to be showing, not only when something falls outside it. Growing
@@ -109,6 +160,26 @@ function dayIndexFor(days: Date[], time: number | null): number {
   if (time === null) return 0;
   const offset = Math.round((time - days[0].getTime()) / 86_400_000);
   return Math.min(Math.max(offset, 0), days.length - 1);
+}
+
+/**
+ * Keeps Leaflet's idea of the viewport in step with the element it draws into.
+ *
+ * Leaflet only remeasures on a window resize, but the map pane also changes
+ * width when the sidebar is hidden and when the layout stacks at narrow
+ * widths. Left alone it keeps drawing at the old size: the visible map shifts
+ * across and the strip it just gained never asks for tiles.
+ */
+function InvalidateOnResize() {
+  const map = useMap();
+
+  useEffect(() => {
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+
+  return null;
 }
 
 function FitBounds({ activities }: { activities: Activity[] }) {
@@ -210,13 +281,13 @@ function FollowRevealedBounds({
 
     onCameraBusyChange(true);
     map.flyToBounds(boundsOf(target), {
+      ...flightOptions,
       padding: [20, 20],
       // Only binds when the cluster is small enough that fitting it would zoom
       // past street level — which in practice means the opening days, before
       // there are enough routes to fill a frame. Set close in, so those first
       // few tracks are the picture rather than a mark on a district map.
       maxZoom: 17,
-      duration: CAMERA_FLIGHT_S,
     });
 
     // Records where the camera was *sent*, not where the map reports being.
@@ -233,7 +304,9 @@ function FollowRevealedBounds({
     const timer = window.setTimeout(() => {
       framed.current = target;
       onCameraBusyChange(false);
-    }, CAMERA_FLIGHT_S * 1000 + CAMERA_HOLD_MS);
+      // Under reduce motion the flight is instant, so there is nothing to
+      // wait out — only the hold that lets the eye register the new place.
+    }, (REDUCE_MOTION ? 0 : CAMERA_FLIGHT_S * 1000) + CAMERA_HOLD_MS);
 
     return () => {
       window.clearTimeout(timer);
@@ -255,7 +328,7 @@ function FlyToSelected({ activities, selectedId }: { activities: Activity[]; sel
     if (!selectedId) return;
     const activity = activities.find((a) => a.id === selectedId);
     if (!activity || activity.points.length === 0) return;
-    map.flyToBounds(L.latLngBounds(activity.points), { padding: [64, 64], maxZoom: 16 });
+    map.flyToBounds(L.latLngBounds(activity.points), { padding: [64, 64], maxZoom: 16, ...flightOptions });
   }, [selectedId, activities, map]);
 
   return null;
@@ -307,7 +380,11 @@ function ActivityPolyline({ activity, isHighlighted, onHover, visitIndex }: Acti
       ref={layerRef}
       positions={activity.points}
       pathOptions={{
-        color: isHighlighted ? ACTIVITY_HIGHLIGHT_COLORS[activity.type] : ACTIVITY_COLORS[activity.type],
+        // className rather than `color`: Leaflet writes `color` out as a stroke
+        // presentation attribute, which is not a CSS context, so a var() token
+        // would never resolve there. The class lets App.css own the hue — and
+        // so lets it change with the appearance.
+        className: `trace trace--${activity.type}${isHighlighted ? " trace--hi" : ""}`,
         weight: isHighlighted ? 6 : 4,
         opacity: isHighlighted ? 1 : 0.7,
       }}
@@ -361,6 +438,7 @@ interface MapViewProps {
 }
 
 export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewProps) {
+  const dark = useDarkAppearance();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [dateRange, setDateRange] = useState<DateRangeOption>("all");
   const [frequencyMap, setFrequencyMap] = useState(false);
@@ -520,10 +598,12 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
     }
     if (frame === null) return null;
 
+    const anchor = frame;
     const latPad = (CLUSTER_RADIUS_KM * 1000) / METERS_PER_DEG_LAT;
     // Longitude degrees shrink towards the poles; one reference latitude keeps
     // the radius roughly circular without trigonometry per comparison.
-    const lngPad = latPad / Math.max(Math.cos((frame[0] * Math.PI) / 180), 0.01);
+    const lngScale = 1 / Math.max(Math.cos((frame[0] * Math.PI) / 180), 0.01);
+    const lngPad = latPad * lngScale;
 
     for (let pass = 0; pass < MAX_CLUSTER_PASSES; pass++) {
       const reach = padBBox(frame, latPad, lngPad);
@@ -537,7 +617,17 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
       if (!grew) break;
     }
 
-    return frame;
+    // Trimmed back to the anchor's neighbourhood. Both boxes contain the
+    // anchor, so the intersection does too: the cap can only ever cut away
+    // chained-in neighbours, never the tracks the day is drawing.
+    const reachLat = (MAX_FRAME_REACH_KM * 1000) / METERS_PER_DEG_LAT;
+    const limit = padBBox(anchor, reachLat, reachLat * lngScale);
+    return [
+      Math.max(frame[0], limit[0]),
+      Math.max(frame[1], limit[1]),
+      Math.min(frame[2], limit[2]),
+      Math.min(frame[3], limit[3]),
+    ];
   }, [displayed, bboxById, timelapse, timelapseDays, dayIndex]);
 
   // Built lazily on the first hover, and thrown away whenever the visible set
@@ -547,12 +637,16 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
   return (
     <div className="map-page">
       <div className="map-toolbar">
-        <div className="segmented" role="group" aria-label="Activity type">
+        {/* radiogroup, not group+aria-pressed: exactly one option can be
+            active, and radio semantics are what announce "2 of 4" and give
+            arrow-key movement between the segments. */}
+        <div className="segmented" role="radiogroup" aria-label="Activity type">
           {TYPE_FILTER_OPTIONS.map(({ value, label }) => (
             <button
               key={value}
               type="button"
-              aria-pressed={typeFilter === value}
+              role="radio"
+              aria-checked={typeFilter === value}
               className={typeFilter === value ? "segmented__option segmented__option--active" : "segmented__option"}
               onClick={() => setTypeFilter(value)}
             >
@@ -560,12 +654,13 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
             </button>
           ))}
         </div>
-        <div className="segmented" role="group" aria-label="Date range">
+        <div className="segmented" role="radiogroup" aria-label="Date range">
           {DATE_RANGE_OPTIONS.map((value) => (
             <button
               key={value}
               type="button"
-              aria-pressed={dateRange === value}
+              role="radio"
+              aria-checked={dateRange === value}
               className={dateRange === value ? "segmented__option segmented__option--active" : "segmented__option"}
               onClick={() => setDateRange(value)}
             >
@@ -600,16 +695,15 @@ export function MapView({ activities, hoveredId, onHover, selectedId }: MapViewP
       )}
       <div className="map-canvas">
         <MapContainer center={[51.1657, 10.4515]} zoom={6} style={{ height: "100%", width: "100%" }}>
-          {/* Carto's Voyager basemap rather than standard OSM tiles: it keeps
-              paths, parks and water legible but at a fraction of the
-              saturation, so the vermilion and teal traces are the brightest
-              thing on the map instead of competing with the roads. */}
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            url={dark ? BASEMAP_DARK : BASEMAP_LIGHT}
+            // Remounts the layer so the cached light tiles are dropped.
+            key={dark ? "dark" : "light"}
             subdomains="abcd"
             maxZoom={20}
           />
+          <InvalidateOnResize />
           {/* A time-lapse frames what's been drawn so far and grows with it;
               otherwise the map fits the whole visible set once. */}
           {timelapse ? (

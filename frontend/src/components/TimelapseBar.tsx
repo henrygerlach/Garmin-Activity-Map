@@ -60,12 +60,15 @@ export function TimelapseBar({
         </svg>
       </button>
 
-      <div className="segmented" role="group" aria-label="Playback speed">
+      {/* radiogroup rather than group+aria-pressed: one speed is in effect at
+          a time, which is what radio semantics describe. */}
+      <div className="segmented" role="radiogroup" aria-label="Playback speed">
         {TIMELAPSE_SPEEDS.map((option) => (
           <button
             key={option}
             type="button"
-            aria-pressed={speed === option}
+            role="radio"
+            aria-checked={speed === option}
             className={speed === option ? "segmented__option segmented__option--active" : "segmented__option"}
             onClick={() => onSpeedChange(option)}
           >

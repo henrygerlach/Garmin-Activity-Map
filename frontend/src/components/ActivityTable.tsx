@@ -132,9 +132,28 @@ export function ActivityTable({ activities, hoveredId, onHover, selectedId, onSe
             <tr
               key={activity.id}
               className={classes || undefined}
+              // Selecting a row flies the map to that route — the app's primary
+              // interaction — so it has to be reachable without a pointer.
+              // Focus doubles as hover so the trace highlights on the map when
+              // tabbed to, exactly as it does under the cursor.
+              tabIndex={0}
+              // aria-current rather than aria-selected: the latter is only
+              // meaningful inside a role="grid", which would commit the table
+              // to full cell-by-cell arrow-key navigation it doesn't implement.
+              aria-current={activity.id === selectedId ? "true" : undefined}
               onMouseEnter={() => onHover(activity.id)}
               onMouseLeave={() => onHover(null)}
+              onFocus={() => onHover(activity.id)}
+              onBlur={() => onHover(null)}
               onClick={() => onSelect(activity.id)}
+              onKeyDown={(e) => {
+                // Space would otherwise scroll the list out from under the row
+                // it is about to select.
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(activity.id);
+                }
+              }}
             >
               <td>
                 <span className="activity-table__route">

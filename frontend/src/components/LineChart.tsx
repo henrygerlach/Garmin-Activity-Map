@@ -11,6 +11,8 @@ export interface LineSeries {
 
 interface LineChartProps {
   series: LineSeries[];
+  /** Names the chart for assistive technology; also used to build its summary. */
+  title: string;
   valueFormatter?: (value: number) => string;
   height?: number;
   labelEvery?: number;
@@ -24,6 +26,11 @@ const PADDING_BOTTOM = 22;
 const PADDING_RIGHT = 16;
 const FALLBACK_SLOT_WIDTH = 34;
 const GRID_STEPS = 4;
+// A date label like "23. März" is about 40px at the 10px axis size; below this
+// much room per label they touch. The stride the caller asks for is a floor —
+// it thins further when the card is narrow, so the same chart stays legible in
+// one column, in two, and with the sidebar hidden.
+const MIN_LABEL_PITCH = 48;
 // Once the cursor gets this close to the container's right edge, the tooltip
 // no longer has room to open rightward and would run off into the gutter —
 // flip it to open to the left of the cursor instead.
@@ -49,16 +56,50 @@ function formatAxisValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+/**
+ * A one-line description of the plotted lines, for screen readers: each series
+ * with its span, its range, and which way it ended up going.
+ */
+function summarise(
+  title: string,
+  series: LineSeries[],
+  labels: string[],
+  format: (v: number) => string,
+): string {
+  const parts = series.map((s) => {
+    const values = s.data.map((d) => d.value).filter((v): v is number => v !== null);
+    if (values.length === 0) return `${s.name}: no data`;
+    const first = values[0];
+    const last = values[values.length - 1];
+    const direction = last > first ? "rising" : last < first ? "falling" : "flat";
+    return (
+      `${s.name} ranges from ${format(Math.min(...values))} to ${format(Math.max(...values))}, ` +
+      `${direction} overall to ${format(last)}`
+    );
+  });
+  const span = labels.length ? ` from ${labels[0]} to ${labels[labels.length - 1]}` : "";
+  return `${title}. Line chart, ${labels.length} points${span}. ${parts.join(". ")}.`;
+}
+
 function LineKey({ color, dashed, width = 16 }: { color: string; dashed?: boolean; width?: number }) {
   return (
-    <svg width={width} height={8} className="line-key">
-      <line x1={0} y1={4} x2={width} y2={4} stroke={color} strokeWidth={2} strokeDasharray={dashed ? "4 3" : undefined} />
+    <svg width={width} height={8} className="line-key" aria-hidden="true">
+      <line
+        x1={0}
+        y1={4}
+        x2={width}
+        y2={4}
+        style={{ stroke: color }}
+        strokeWidth={2}
+        strokeDasharray={dashed ? "4 3" : undefined}
+      />
     </svg>
   );
 }
 
 export function LineChart({
   series,
+  title,
   valueFormatter = (v) => String(v),
   height = 220,
   labelEvery = 1,
@@ -76,6 +117,7 @@ export function LineChart({
     availableWidth > 0 && pointCount > 0
       ? (availableWidth - PADDING_LEFT - PADDING_RIGHT) / Math.min(pointCount, visiblePoints ?? pointCount)
       : FALLBACK_SLOT_WIDTH;
+  const labelStride = Math.max(labelEvery, Math.ceil(MIN_LABEL_PITCH / slotWidth));
   const plotWidth = pointCount * slotWidth;
   const chartWidth = PADDING_LEFT + plotWidth + PADDING_RIGHT;
   const plotHeight = height - PADDING_TOP - PADDING_BOTTOM;
@@ -155,7 +197,16 @@ export function LineChart({
   return (
     <div className="line-chart" ref={containerRef} onMouseMove={updatePointer} onMouseLeave={() => setHoverIndex(null)}>
       <div className="chart-scroll" ref={scrollRef}>
-        <svg viewBox={`0 0 ${chartWidth} ${height}`} width={chartWidth} height={height} preserveAspectRatio="xMinYMin meet">
+        {/* Values live on the hover tooltip only, so each series states its
+            own direction and range here instead of announcing as a graphic. */}
+        <svg
+          role="img"
+          aria-label={summarise(title, series, labels, valueFormatter)}
+          viewBox={`0 0 ${chartWidth} ${height}`}
+          width={chartWidth}
+          height={height}
+          preserveAspectRatio="xMinYMin meet"
+        >
           {ticks.map((value, i) => (
             <line
               key={i}
@@ -186,7 +237,7 @@ export function LineChart({
                     key={si}
                     d={segment.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")}
                     fill="none"
-                    stroke={s.color}
+                    style={{ stroke: s.color }}
                     strokeWidth={2}
                     strokeLinejoin="round"
                     strokeLinecap="round"
@@ -196,16 +247,25 @@ export function LineChart({
                 {last && (
                   <g>
                     <circle className="chart-point-halo" cx={xFor(last.index)} cy={yFor(last.value)} r={5} />
-                    <circle cx={xFor(last.index)} cy={yFor(last.value)} r={4} fill={s.color} />
+                    <circle cx={xFor(last.index)} cy={yFor(last.value)} r={4} style={{ fill: s.color }} />
                   </g>
                 )}
               </g>
             );
           })}
 
+          {/* The y-axis gutter is drawn over the plot's left edge, so the
+              first label — centred on the point sitting at that edge — would
+              lose its leading characters under it. */}
           {labels.map((label, i) =>
-            i % labelEvery === 0 ? (
-              <text className="chart-axis-label" key={i} x={xFor(i)} y={height - 6} textAnchor="middle">
+            i % labelStride === 0 ? (
+              <text
+                className="chart-axis-label"
+                key={i}
+                x={i === 0 ? PADDING_LEFT : xFor(i)}
+                y={height - 6}
+                textAnchor={i === 0 ? "start" : "middle"}
+              >
                 {label}
               </text>
             ) : null,

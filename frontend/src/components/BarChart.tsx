@@ -5,6 +5,8 @@ import { useElementWidth } from "../lib/useElementWidth";
 interface BarChartProps {
   data: Bucket[];
   color: string;
+  /** Names the chart for assistive technology; also used to build its summary. */
+  title: string;
   valueFormatter?: (value: number) => string;
   height?: number;
   labelEvery?: number;
@@ -21,6 +23,11 @@ const FALLBACK_SLOT_WIDTH = 34;
 const MAX_BAR_WIDTH = 40;
 const BAR_SHARE = 0.72;
 const GRID_STEPS = 4;
+// A date label like "23. März" is about 40px at the 10px axis size; below this
+// much room per label they touch. The stride the caller asks for is a floor —
+// it thins further when the card is narrow, so the same chart stays legible in
+// one column, in two, and with the sidebar hidden.
+const MIN_LABEL_PITCH = 48;
 // Once the cursor gets this close to the container's right edge, the tooltip
 // no longer has room to open rightward and would run off into the gutter —
 // flip it to open to the left of the cursor instead.
@@ -40,6 +47,22 @@ function formatAxisValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+/**
+ * A one-line description of what the bars do, for screen readers: how many
+ * buckets, over what span, and where the high and low points fall.
+ */
+function summarise(title: string, data: Bucket[], format: (v: number) => string): string {
+  if (data.length === 0) return `${title}. No data.`;
+  const values = data.map((d) => d.value);
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const peak = data[values.indexOf(max)];
+  return (
+    `${title}. Bar chart, ${data.length} bars from ${data[0].label} to ${data[data.length - 1].label}. ` +
+    `Ranges from ${format(min)} to ${format(max)}, highest at ${peak.label}.`
+  );
+}
+
 // Rounded top corners only, square baseline — a plain <rect rx> rounds all four.
 function roundedTopBarPath(x: number, y: number, width: number, height: number, radius: number): string {
   if (height <= 0) return "";
@@ -50,6 +73,7 @@ function roundedTopBarPath(x: number, y: number, width: number, height: number, 
 export function BarChart({
   data,
   color,
+  title,
   valueFormatter = (v) => String(v),
   height = 200,
   labelEvery = 1,
@@ -66,6 +90,7 @@ export function BarChart({
     availableWidth > 0 && data.length > 0
       ? (availableWidth - PADDING_LEFT) / Math.min(data.length, visibleBuckets ?? data.length)
       : FALLBACK_SLOT_WIDTH;
+  const labelStride = Math.max(labelEvery, Math.ceil(MIN_LABEL_PITCH / slotWidth));
   const barWidth = Math.min(slotWidth * BAR_SHARE, MAX_BAR_WIDTH);
   const chartWidth = PADDING_LEFT + data.length * slotWidth;
   const maxValue = niceCeiling(Math.max(...data.map((d) => d.value), 0));
@@ -98,7 +123,17 @@ export function BarChart({
   return (
     <div className="bar-chart" ref={containerRef} onMouseMove={updatePointer}>
       <div className="chart-scroll" ref={scrollRef}>
-        <svg viewBox={`0 0 ${chartWidth} ${height}`} width={chartWidth} height={height} preserveAspectRatio="xMinYMin meet">
+        {/* The values themselves are only on the hover tooltip, so the chart
+            states its own shape — range, span and extremes — in its label
+            rather than announcing as an unlabelled graphic. */}
+        <svg
+          role="img"
+          aria-label={summarise(title, data, valueFormatter)}
+          viewBox={`0 0 ${chartWidth} ${height}`}
+          width={chartWidth}
+          height={height}
+          preserveAspectRatio="xMinYMin meet"
+        >
           {ticks.map((value, i) => (
             <line
               key={i}
@@ -122,9 +157,23 @@ export function BarChart({
                 onMouseLeave={() => setHoveredIndex(null)}
               >
                 <rect x={x} y={PADDING_TOP} width={barWidth} height={plotHeight} fill="transparent" />
-                <path d={roundedTopBarPath(x, y, barWidth, barHeight, 4)} fill={color} opacity={isHovered ? 1 : 0.82} />
-                {i % labelEvery === 0 && (
-                  <text className="chart-axis-label" x={x + barWidth / 2} y={height - 4} textAnchor="middle">
+                {/* style, not fill=: the colour is a var() token and a
+                    presentation attribute isn't a CSS context. */}
+                <path
+                  d={roundedTopBarPath(x, y, barWidth, barHeight, 4)}
+                  style={{ fill: color }}
+                  opacity={isHovered ? 1 : 0.82}
+                />
+                {i % labelStride === 0 && (
+                  /* The y-axis gutter is drawn over the plot's left edge, so
+                     the first label — centred on a bucket that starts right at
+                     that edge — would lose its leading characters under it. */
+                  <text
+                    className="chart-axis-label"
+                    x={i === 0 ? PADDING_LEFT : x + barWidth / 2}
+                    y={height - 4}
+                    textAnchor={i === 0 ? "start" : "middle"}
+                  >
                     {d.label}
                   </text>
                 )}

@@ -69,10 +69,16 @@ export function UpdateButton({ apiBaseUrl, onSynced, onSyncError }: UpdateButton
 
   return (
     <div className="update-control">
-      <button type="button" onClick={handleClick} disabled={syncing}>
+      <button type="button" onClick={handleClick} disabled={syncing} aria-busy={syncing}>
         {syncing ? "Syncing…" : "Sync"}
       </button>
-      <span className="update-status">{statusText}</span>
+      {/* role="status" so the outcome — how many activities came in, or that
+          nothing has ever synced — is announced rather than only drawn.
+          Still indeterminate: POST /api/sync returns once, at the end, so
+          there is no count to report until it does. */}
+      <span className="update-status" role="status">
+        {statusText}
+      </span>
     </div>
   );
 }

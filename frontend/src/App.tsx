@@ -25,6 +25,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("map");
+  const [sidebarVisible, setSidebarVisible] = useState(true);
 
   const loadActivities = useCallback(async () => {
     const [activityResult, metricsResult] = await Promise.all([
@@ -52,14 +53,20 @@ function App() {
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      <aside className={sidebarVisible ? "sidebar" : "sidebar sidebar--hidden"} id="activity-sidebar">
         <header className="sidebar__header">
           <h1>Garmin Activity Map</h1>
           <UpdateButton apiBaseUrl={API_BASE_URL} onSynced={loadActivities} onSyncError={setSyncError} />
         </header>
-        {error && <p className="error-banner">{error}</p>}
+        {/* role="alert" so a failure is announced, not only drawn — this is the
+            one thing in the app that can silently go wrong. */}
+        {error && (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        )}
         {syncError && (
-          <p className="error-banner">
+          <p className="error-banner" role="alert">
             <strong>Garmin sync failed.</strong> {syncError}
           </p>
         )}
@@ -83,6 +90,40 @@ function App() {
       </aside>
       <main className="content-pane">
         <nav className="tabs" role="tablist" aria-label="View">
+          {/* Outside the tablist proper — it switches nothing, it just gives the
+              map the whole window. Lives here rather than in the sidebar so it
+              can still be reached once the sidebar is gone. */}
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() => setSidebarVisible((v) => !v)}
+            aria-expanded={sidebarVisible}
+            aria-controls="activity-sidebar"
+            aria-label={sidebarVisible ? "Hide activity list" : "Show activity list"}
+            title={sidebarVisible ? "Hide activity list" : "Show activity list"}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <rect
+                x="1.5"
+                y="2.5"
+                width="13"
+                height="11"
+                rx="2"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.3"
+              />
+              <line
+                x1="6"
+                y1="2.5"
+                x2="6"
+                y2="13.5"
+                stroke="currentColor"
+                strokeWidth="1.3"
+              />
+              {sidebarVisible && <rect x="1.5" y="2.5" width="4.5" height="11" fill="currentColor" opacity="0.35" />}
+            </svg>
+          </button>
           {TABS.map(({ id, label }) => (
             <button
               key={id}

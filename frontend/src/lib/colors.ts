@@ -1,44 +1,52 @@
 import type { ActivityKind } from "../types";
 
-// Blaze vermilion, violet and deep teal — a waymarker set. Chosen over a
-// blue/purple split because these sit on top of map tiles: blue reads as
-// water, and the three hues here stay distinguishable for red-green colour
-// blindness. Their lightnesses are spread too (~47%, ~59%, ~27%), so the
-// three lines stay separable where hue perception doesn't do the work.
+// The palette itself lives in index.css as custom properties, so a hue is
+// declared once rather than repeated as hexes here that drift from it.
+// What is exported here are references to those tokens, which means every
+// consumer has to apply them somewhere var() actually resolves: a `style`
+// attribute, a CSS class, or a Leaflet `className` — never a bare SVG
+// presentation attribute like fill="...", which is not a CSS context.
 export const ACTIVITY_COLORS: Record<ActivityKind, string> = {
-  walk: "#d2451e",
-  run: "#8250df",
-  bike: "#0e7c74",
+  walk: "var(--walk)",
+  run: "var(--run)",
+  bike: "var(--bike)",
 };
 
-// Lighter tints used to make a hovered/selected line stand out against the
-// mass of other same-type lines, instead of just a thicker version of the
-// same color.
 export const ACTIVITY_HIGHLIGHT_COLORS: Record<ActivityKind, string> = {
-  walk: "#f08a63",
-  run: "#b995f5",
-  bike: "#4fc0b5",
+  walk: "var(--walk-hi)",
+  run: "var(--run-hi)",
+  bike: "var(--bike-hi)",
 };
 
 // For series that count activities rather than identifying a type — graphite,
 // so a neutral bar never reads as "some third kind of activity".
-export const CHART_NEUTRAL = "#8d9287";
+export const CHART_NEUTRAL = "var(--chart-neutral)";
 
-// Sequential, one hue, light -> dark: magnitude encoding, not identity. Runs
-// from the paper toward the bike teal so the calendar sits inside the palette
-// instead of introducing a fourth colour.
-export const CALENDAR_LEVEL_COLORS = ["#e4e7de", "#bcd9d3", "#7fbdb3", "#3f9a8f", "#0e6b64"];
+// Sequential, one hue: magnitude encoding, not identity. Index is the
+// heatmap level, 0 meaning "nothing logged that day".
+export const CALENDAR_LEVEL_COLORS = [
+  "var(--cal-0)",
+  "var(--cal-1)",
+  "var(--cal-2)",
+  "var(--cal-3)",
+  "var(--cal-4)",
+];
 
 // Route-frequency scale: green (been there once) through amber and orange to
 // red (visited most). Requested explicitly as green-to-red rather than the
 // usual single-hue sequential ramp, so lightness is made to fall alongside
 // hue on top of the green->red run — a deuteranope who can't separate the
 // hues can still read the gradient from the darkening value.
+//
+// Deliberately still literal rgb rather than tokens: these are interpolated
+// per segment at draw time, which var() can't do. The stops are pitched at the
+// palette's own chroma so the ramp sits with the trace colours, and stay light
+// enough to hold up over the inverted basemap.
 const FREQUENCY_STOPS: [number, number, number][] = [
-  [46, 158, 79], // green — visited once
-  [217, 184, 41], // amber
-  [224, 122, 39], // orange
-  [176, 30, 30], // red — visited most
+  [122, 222, 140], // green — visited once
+  [216, 181, 15], // amber
+  [232, 127, 41], // orange
+  [203, 70, 69], // red — visited most
 ];
 
 /** Interpolated color for a segment visited `count` times out of `maxCount`. */

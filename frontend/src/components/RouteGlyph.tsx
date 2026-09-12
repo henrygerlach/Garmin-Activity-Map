@@ -79,7 +79,16 @@ export function RouteGlyph({ points, kind }: RouteGlyphProps) {
 
   return (
     <svg className="route-glyph" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} width={WIDTH} height={HEIGHT} aria-hidden="true">
-      <path d={path} fill="none" stroke={ACTIVITY_COLORS[kind]} strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
+      {/* style, not stroke=: the colour is a var() token, and an SVG
+          presentation attribute isn't a CSS context for it to resolve in. */}
+      <path
+        d={path}
+        fill="none"
+        style={{ stroke: ACTIVITY_COLORS[kind] }}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

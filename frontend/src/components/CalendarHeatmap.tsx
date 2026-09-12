@@ -6,6 +6,8 @@ import { useElementWidth } from "../lib/useElementWidth";
 
 interface CalendarHeatmapProps {
   days: DayActivity[];
+  /** Names the chart for assistive technology; also used to build its summary. */
+  title: string;
 }
 
 // Cells grow to fill the card up to MAX_CELL, so a few months of history
@@ -62,7 +64,24 @@ function levelFor(distanceM: number, thresholds: [number, number, number]): numb
   return 4;
 }
 
-export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
+/**
+ * A one-line description of the grid, for screen readers: how many days it
+ * covers, how many of them were active, and the busiest one.
+ */
+function summarise(title: string, days: DayActivity[]): string {
+  if (days.length === 0) return `${title}. No data.`;
+  const active = days.filter((d) => d.count > 0);
+  const busiest = active.reduce((best, d) => (d.distanceM > best.distanceM ? d : best), active[0]);
+  const span = `${days[0].date.toLocaleDateString(undefined, { dateStyle: "long" })} to ${days[days.length - 1].date.toLocaleDateString(undefined, { dateStyle: "long" })}`;
+  if (!busiest) return `${title}. ${days.length} days from ${span}, none with a logged activity.`;
+  return (
+    `${title}. Heatmap of ${days.length} days from ${span}. ` +
+    `${active.length} days with a logged activity. ` +
+    `Busiest was ${busiest.date.toLocaleDateString(undefined, { dateStyle: "long" })} at ${formatDistance(busiest.distanceM)}.`
+  );
+}
+
+export function CalendarHeatmap({ days, title }: CalendarHeatmapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const availableWidth = useElementWidth(containerRef);
@@ -99,7 +118,17 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
   return (
     <div className="calendar-heatmap" ref={containerRef} onMouseLeave={() => setHovered(null)}>
       <div className="chart-scroll" ref={scrollRef}>
-        <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} preserveAspectRatio="xMinYMin meet">
+        {/* One accessibility label for the whole grid rather than one per cell:
+            several years of days would be thousands of elements to step
+            through, and the useful reading is the aggregate. */}
+        <svg
+          role="img"
+          aria-label={summarise(title, days)}
+          viewBox={`0 0 ${width} ${height}`}
+          width={width}
+          height={height}
+          preserveAspectRatio="xMinYMin meet"
+        >
           {ROW_LABELS.map((label, row) =>
             label ? (
               <text className="chart-axis-value" key={row} x={0} y={TOP_PADDING + row * step + cellSize - 2}>
@@ -137,7 +166,7 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
                       width={cellSize}
                       height={cellSize}
                       rx={2}
-                      fill={CALENDAR_LEVEL_COLORS[level]}
+                      style={{ fill: CALENDAR_LEVEL_COLORS[level] }}
                       onMouseEnter={(e) => showTooltip(day, e)}
                     />
                   );
@@ -148,7 +177,7 @@ export function CalendarHeatmap({ days }: CalendarHeatmapProps) {
         </svg>
       </div>
 
-      <div className="calendar-heatmap__legend">
+      <div className="calendar-heatmap__legend" aria-hidden="true">
         <span>Less</span>
         {CALENDAR_LEVEL_COLORS.map((color) => (
           <span key={color} className="calendar-heatmap__swatch" style={{ background: color }} />

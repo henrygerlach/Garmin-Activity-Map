@@ -1,42 +1,119 @@
 /* ── Garmin Activity Map design tokens ────────────────────────────────────────────────
-   Direction: "field instrument". The chrome is a map case — cool lichen
-   paper, hairline rules, precise figures — so that the only saturated
-   things on screen are the map and the traces drawn on it. */
+   Direction: "field instrument", drawn in the Kontoauszug palette so the two
+   apps read as one set. The chrome is a dark, blue-black map case — every
+   saturated thing on screen is the map or a trace on it.
+
+   Dark only, like Kontoauszug: the basemap is inverted to match (App.css), so
+   there is no second appearance for a light-dark() pair to switch between.
+   The contrast figures in the comments are against the surface each token is
+   actually used on. */
 
 :root {
-  /* Surfaces. A cool grey-green, the colour of a walking map's margin. */
-  --paper: #e7e9e2;
-  --case: #f6f7f3;
-  --case-sunk: #eef0e9;
+  /* Tells the engine to draw the native checkbox, range input and scrollbars
+     dark, which is the only appearance this app has. */
+  color-scheme: dark;
 
-  /* Ink. Olive-black rather than pure black, to sit with the paper. */
-  --ink: #1f241c;
-  --ink-2: #4a5046;
-  --graphite: #6c7266;
-  --graphite-2: #8d9287;
+  /* Surfaces, darkest to lightest — the page, the recess, the card. The order
+     is what it always was here: a sunk bar or a hovered row goes *down* toward
+     the page, and a card floats above it. */
+  --paper: #0b0e12;
+  --case-sunk: #11151b;
+  --case: #161b23;
 
-  --rule: #d3d6cc;
-  --rule-soft: #e2e4dc;
+  /* One step above the card, for a hover fill that has to stay visible under
+     a lifted control. */
+  --case-lift: #1d242e;
 
-  /* Trace colours. Blaze vermilion and deep teal: a waymarker pair that
-     stays distinguishable for red-green colour blindness and reads over map
-     tiles, which blue never does — on a map, blue is water. */
-  --walk: #d2451e;
-  --bike: #0e7c74;
-  --walk-wash: #fbeee8;
-  --bike-wash: #e5f1ef;
+  /* Ink. Three steps, and every one clears 4.5:1 on --case, the lightest
+     surface any of them sits on. */
+  --ink: #e8ecf1;
+  --ink-2: #9aa6b6;
 
-  --alert: #9b2c1a;
-  --alert-wash: #f8eae6;
+  /* Secondary text. Carries units, axis values and eyebrows — the labels on
+     the data — and is the smallest text here, so it is held at 5.1:1 on
+     --case and 5.7:1 on --paper rather than at the bare minimum. */
+  --graphite: #7e8da1;
+
+  /* Non-text only: hairline glyphs and disabled marks. 3.1:1 on --case, which
+     is the mark threshold, not the text one. Never used for a label. */
+  --graphite-2: #5c6a7c;
+
+  /* Secondary text on the inverted surfaces — tooltips and filled buttons,
+     which are --ink fills — where --graphite would be unreadable. 4.9:1. */
+  --ink-inverse-2: #5b6675;
+
+  --rule: #262e39;
+  --rule-soft: #1d242e;
+  --rule-strong: #35404e;
+
+  /* Kontoauszug's reserved focus signal, never used for anything else. */
+  --focus: #7fb0ff;
+
+  /* Trace colours, taken from the Kontoauszug category tones (OKLCH, L≈0.66–0.72
+     at C≈0.12) so they carry the same weight as that palette rather than
+     shouting over it: vermilion, violet and teal. A waymarker set that stays
+     distinguishable for red-green colour blindness and reads over map tiles,
+     which blue never does — on a map, blue is water. */
+  --walk: #dc795f;
+  --run: #9982d3;
+  --bike: #4abc9a;
+
+  /* Lighter tints that make a hovered or selected line stand out from the mass
+     of other same-type lines, rather than just a thicker version of itself.
+     Same hue, lightness lifted two of the palette's minor steps. */
+  --walk-hi: #fca48d;
+  --run-hi: #bdaaf1;
+  --bike-hi: #85e0c2;
+
+  /* For chart series that count activities rather than identifying a type —
+     the palette's near-neutral tone, so a neutral bar never reads as "some
+     third kind of activity". 4.8:1 on --case. */
+  --chart-neutral: #798898;
+
+  /* Calendar heatmap: sequential, one hue, dark -> light. Magnitude, not
+     identity, so it runs from the card toward the bike teal instead of
+     introducing a fourth colour. Level 0 is "no activity" and sits just off
+     the card. */
+  --cal-0: #1d242e;
+  --cal-1: #2d5044;
+  --cal-2: #3b7663;
+  --cal-3: #449c81;
+  --cal-4: #52c2a0;
+
+  /* The palette's reserved negative signal, on a band dark enough to stay
+     chrome. 4.8:1 of alert on wash. */
+  --alert: #e0655c;
+  --alert-wash: #2f1a1d;
 
   --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 10px;
+  --r-md: 8px;
+  --r-lg: 14px;
 
-  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Segoe UI", sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --shade: 0 1px 2px rgb(31 36 28 / 6%);
+  /* Type scale. In rem, so the whole interface responds when someone changes
+     their browser's text size; spacing stays in px so the hairline grid does
+     not drift. The steps are Kontoauszug's, so a figure or a label is set at
+     the same size in both apps. */
+  --t-micro: 0.68rem; /* units, axis values, table headers */
+  --t-small: 0.7rem; /* the mono micro-label, hints, legends, status */
+  --t-base: 0.82rem; /* mono cells and figures */
+  --t-body: 0.9rem; /* controls, tabs, body text */
+  --t-title: 1rem; /* card and panel headings */
+  --t-display: 1.9rem; /* stat figures */
+  --t-app: 1.45rem; /* app title */
+
+  /* Spacing rhythm */
+  --gap-xs: 6px;
+  --gap-sm: 10px;
+  --gap-md: 16px;
+  --gap-lg: 24px;
+  --gap-xl: 40px;
+
+  --shade: 0 1px 2px rgb(0 0 0 / 35%);
+  --shade-pop: 0 24px 60px rgb(0 0 0 / 45%);
 }
 
 * {
@@ -52,20 +129,63 @@ body,
 
 body {
   font-family: var(--font-body);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--ink);
   background: var(--paper);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   /* Data is read down a column far more than across a row here, so figures
      line up by default everywhere and are never opted back out of. */
   font-variant-numeric: tabular-nums;
 }
 
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+/* Every figure on the page is a figure you might compare to another one. */
+.stat-tile__value,
+.activity-table__num,
+.chart-axis-value,
+.chart-tooltip strong,
+.timelapse__date,
+.timelapse__totals,
+.map-legend {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Small uppercase mono label — the recurring structural device. */
+.eyebrow,
+.stat-tile__label,
+.activity-table__sort-label,
+.chart-card__axis-label,
+.chart-tooltip__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-small);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--graphite);
+}
+
+::selection {
+  background: var(--focus);
+  color: var(--paper);
+}
+
 /* Every interactive surface gets the same ring, offset off the element so it
-   stays visible against both --case and the vermilion filled states. */
+   stays visible against both --case and the filled states. */
 :where(button, a, input, [tabindex]):focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
