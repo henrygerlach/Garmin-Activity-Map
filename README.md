@@ -12,7 +12,7 @@
 ![Postgres](https://img.shields.io/badge/PostgreSQL-4169e1?style=flat-square&logo=postgresql&logoColor=white)
 ![Coded with Claude Code](https://img.shields.io/badge/Coded_with-Claude_Code-d97757?style=flat-square&logo=anthropic&logoColor=white)
 
-> **I did not write this code — Claude Code did, all of it.** I gave it the tech stack and a brief, it built a first draft, and from there we iterated: until the app had every feature I actually needed, and until it stopped looking like generated output and started looking like a real product.
+> **I did not write this code — Claude Code did, all of it.** I gave it the tech stack and a initial detailed idea, it built a first draft, and from there we iterated: until the app had every feature I actually needed, and until it stopped looking like generated output and started looking like a real product.
 
 ![The map view](docs/map.jpg)
 
@@ -20,7 +20,9 @@
 
 > The screenshots use a synthetic demo history rather than my own, since I'd rather not publish my home address or my real training log.
 
----
+## Why I built it
+
+The Garmin Connect app has no view that shows every route on one map, and no statistics that reveal how my training has progressed over time. This fills both gaps.
 
 ## Features
 
@@ -142,3 +144,8 @@ Re-run `scripts/build-launchers.sh` after changing `launcher.c` or moving the pr
 `npm run seed:demo` replaces the database with a synthetic history so the app can be screenshotted without publishing a real home address or training log; `npm run seed:restore` puts the real data back from a gitignored local backup.
 
 > ⚠️ Don't press **Sync** while the demo data is loaded — it would sync real Garmin activities into the middle of it.
+
+## Testing and Quality
+
+Both projects run on Vitest (`npm test`, `npm run test:coverage`). Backend tests mock Garmin Connect and Supabase to exercise the sync and persistence logic in isolation; frontend tests use React Testing Library, plus a real `react-leaflet` `MapContainer` in jsdom for the map components. Coverage sits around 97% on the backend and 95% on the frontend, excluding CLI scripts and trivial client-init files that aren't worth unit testing.
+
