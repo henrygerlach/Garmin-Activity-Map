@@ -94,6 +94,10 @@ app.post("/api/sync", async (_req, res) => {
 });
 
 const port = Number(process.env.PORT) || 8788;
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Walkies sync backend listening on http://127.0.0.1:${port}`);
 });
+
+// Exported for tests, which hit the routes over a real ephemeral port rather
+// than exercising Express's internals directly.
+export { app, server };
