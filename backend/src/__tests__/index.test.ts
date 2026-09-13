@@ -56,7 +56,7 @@ afterAll(() => {
 
 async function request(path: string, init?: RequestInit) {
   const res = await fetch(`http://127.0.0.1:${process.env.PORT}${path}`, init);
-  return { status: res.status, body: await res.json() };
+  return { status: res.status, body: (await res.json()) as any };
 }
 
 beforeEach(() => {

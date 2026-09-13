@@ -2,6 +2,7 @@
 
 **A web app that draws every walk, run and bike ride ever logged on Garmin onto one map, with a statistics tab showing the progression behind them.**
 
+![CI](https://github.com/henrygerlach/Garmin-Activity-Map/actions/workflows/ci.yml/badge.svg)
 ![React](https://img.shields.io/badge/React_19-20232a?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646cff?style=flat-square&logo=vite&logoColor=white)

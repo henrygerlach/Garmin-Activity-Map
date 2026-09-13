@@ -28,7 +28,7 @@ describe("generateDemoHistory", () => {
       expect(activity.duration_s).toBeGreaterThan(0);
       expect(activity.moving_duration_s).toBeGreaterThan(0);
       expect(activity.avg_hr).toBeGreaterThan(0);
-      expect(activity.max_hr).toBeGreaterThanOrEqual(activity.avg_hr);
+      expect(activity.max_hr).toBeGreaterThanOrEqual(activity.avg_hr ?? 0);
       expect(activity.points.length).toBeGreaterThan(1);
       expect(streams.t_s.length).toBe(activity.points.length);
       expect(streams.distance_m.length).toBe(activity.points.length);
