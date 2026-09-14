@@ -5,8 +5,10 @@ import { makeActivity } from "./test/fixtures";
 
 const order = vi.fn();
 const select = vi.fn(() => ({ order }));
-const from = vi.fn(() => ({ select }));
-vi.mock("./lib/supabase", () => ({ supabase: { from: (...args: unknown[]) => from(...args) } }));
+// Typed with the table name it is called with, so assertions below can read
+// `from.mock.calls[n][0]` and get a string rather than an empty tuple.
+const from = vi.fn((_table: string) => ({ select }));
+vi.mock("./lib/supabase", () => ({ supabase: { from: (table: string) => from(table) } }));
 
 vi.mock("./components/MapView", () => ({
   MapView: ({ activities, selectedId }: { activities: unknown[]; selectedId: string | null }) => (
