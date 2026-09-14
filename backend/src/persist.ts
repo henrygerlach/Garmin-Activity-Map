@@ -1,4 +1,5 @@
 import type { ActivityStreams, NormalizedActivity } from "./garmin.js";
+import type { Match } from "./wahoo.js";
 import type { DailyMetric } from "./wellness.js";
 import { supabase } from "./supabase.js";
 
@@ -29,6 +30,49 @@ export async function saveActivity(
     { onConflict: "activity_id" },
   );
   if (streamsError) throw streamsError;
+}
+
+/**
+ * Writes matched Wahoo power figures onto the activities they belong to.
+ *
+ * One update per match rather than an upsert: `activities` has several
+ * not-null columns, so an upsert would have to carry the whole row back just
+ * to change six fields. A sync matches a handful of workouts, and even a
+ * first-run backfill of a full history is a few hundred small updates.
+ */
+export async function saveActivityPower(matches: Match[]): Promise<void> {
+  for (const { activity_id, workout } of matches) {
+    const { error } = await supabase
+      .from("activities")
+      .update({
+        wahoo_workout_id: workout.wahoo_workout_id,
+        avg_power_w: workout.avg_power_w,
+        norm_power_w: workout.norm_power_w,
+        tss: workout.tss,
+        work_kj: workout.work_kj,
+        avg_cadence_rpm: workout.avg_cadence_rpm,
+      })
+      .eq("id", activity_id);
+    if (error) throw error;
+  }
+}
+
+/** The stored Wahoo refresh token, or null before the first authorisation. */
+export async function loadWahooRefreshToken(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("wahoo_tokens")
+    .select("refresh_token")
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.refresh_token as string) ?? null;
+}
+
+/** Replaces the stored refresh token with the one Wahoo issued in its place. */
+export async function saveWahooRefreshToken(refreshToken: string): Promise<void> {
+  const { error } = await supabase
+    .from("wahoo_tokens")
+    .upsert({ id: true, refresh_token: refreshToken, updated_at: new Date().toISOString() });
+  if (error) throw error;
 }
 
 /** Upserts a run of daily wellness rows, keyed by their calendar date. */

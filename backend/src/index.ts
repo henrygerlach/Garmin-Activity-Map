@@ -3,8 +3,16 @@ import "./env.js";
 import cors from "cors";
 import express from "express";
 import { fetchActivities, login } from "./garmin.js";
-import { saveActivity, saveDailyMetrics } from "./persist.js";
+import {
+  loadWahooRefreshToken,
+  saveActivity,
+  saveActivityPower,
+  saveDailyMetrics,
+  saveWahooRefreshToken,
+} from "./persist.js";
 import { supabase } from "./supabase.js";
+import type { MatchTarget } from "./wahoo.js";
+import { fetchWorkouts, matchWorkouts, refreshAccessToken } from "./wahoo.js";
 import { addDays, fetchDailyMetrics, toCalendarDate } from "./wellness.js";
 
 // Today's step count is still growing, and last night's resting heart rate and
@@ -44,6 +52,58 @@ async function dailyMetricsStartDate(): Promise<Date> {
   return earliest
     ? new Date(earliest.start_time as string)
     : addDays(new Date(), -DAILY_METRICS_MAX_HISTORY_DAYS);
+}
+
+/**
+ * Pulls power-meter figures from Wahoo and writes them onto the watch
+ * activities they were recorded alongside. Returns how many activities gained
+ * power, or null when Wahoo isn't configured.
+ *
+ * Runs after the Garmin sync on purpose: an activity recorded minutes ago has
+ * to exist as a row before there is anything for its watts to attach to.
+ */
+async function syncWahooPower(): Promise<number | null> {
+  const clientId = process.env.WAHOO_CLIENT_ID;
+  const clientSecret = process.env.WAHOO_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  const storedToken = await loadWahooRefreshToken();
+  if (!storedToken) {
+    throw new Error("No Wahoo refresh token stored. Run `npm run wahoo:auth` in backend/.");
+  }
+
+  const { accessToken, refreshToken } = await refreshAccessToken(clientId, clientSecret, storedToken);
+  // Before the first API call, never after: Wahoo only retires the old token
+  // once the new one is used, so a crash here is recoverable and a crash after
+  // a successful call would not be.
+  await saveWahooRefreshToken(refreshToken);
+
+  // The newest activity already carrying power is where the last run got to.
+  const { data: newestMatched, error: matchedError } = await supabase
+    .from("activities")
+    .select("start_time")
+    .not("wahoo_workout_id", "is", null)
+    .order("start_time", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (matchedError) throw matchedError;
+  const since = newestMatched ? new Date(newestMatched.start_time as string) : null;
+
+  const workouts = await fetchWorkouts(accessToken, since, (message) => console.log(message));
+  if (workouts.length === 0) return 0;
+
+  let query = supabase
+    .from("activities")
+    .select("id, start_time, duration_s")
+    .is("wahoo_workout_id", null);
+  if (since) query = query.gte("start_time", since.toISOString());
+  const { data: candidates, error: candidatesError } = await query;
+  if (candidatesError) throw candidatesError;
+
+  const matches = matchWorkouts(workouts, (candidates ?? []) as MatchTarget[]);
+  await saveActivityPower(matches);
+  console.log(`Wahoo: ${matches.length} of ${workouts.length} workouts matched to an activity`);
+  return matches.length;
 }
 
 const app = express();
@@ -86,7 +146,19 @@ app.post("/api/sync", async (_req, res) => {
     await saveDailyMetrics(metrics);
     console.log(`${metrics.length} days of wellness data from ${toCalendarDate(from)}`);
 
-    res.json({ synced, dailyMetrics: metrics.length });
+    // Wahoo is a second, optional source. A failure there shouldn't fail a
+    // sync that has already written everything Garmin had, so it reports its
+    // problem alongside the result instead of throwing away the good news.
+    let power: number | null = null;
+    let wahooError: string | null = null;
+    try {
+      power = await syncWahooPower();
+    } catch (err) {
+      wahooError = err instanceof Error ? err.message : "Wahoo sync failed";
+      console.error("Wahoo sync failed:", err);
+    }
+
+    res.json({ synced, dailyMetrics: metrics.length, power, wahooError });
   } catch (err) {
     console.error("Sync failed:", err);
     res.status(500).json({ error: err instanceof Error ? err.message : "Sync failed" });

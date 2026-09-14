@@ -105,7 +105,7 @@ describe("POST /api/sync", () => {
     const { status, body } = await request("/api/sync", { method: "POST" });
 
     expect(status).toBe(200);
-    expect(body).toEqual({ synced: 3, dailyMetrics: 2 });
+    expect(body).toEqual({ synced: 3, dailyMetrics: 2, power: null, wahooError: null });
     const [, start, end] = fetchDailyMetricsMock.mock.calls[0];
     // Compared via local getters, not toISOString, since the source builds this
     // date from local y/m/d components and a UTC slice can land on the day before.
@@ -134,7 +134,7 @@ describe("POST /api/sync", () => {
 
     const { status, body } = await request("/api/sync", { method: "POST" });
     expect(status).toBe(200);
-    expect(body).toEqual({ synced: 0, dailyMetrics: 0 });
+    expect(body).toEqual({ synced: 0, dailyMetrics: 0, power: null, wahooError: null });
     const [, start] = fetchDailyMetricsMock.mock.calls[0];
     expect(start.toISOString()).toBe("2024-05-01T00:00:00.000Z");
   });
