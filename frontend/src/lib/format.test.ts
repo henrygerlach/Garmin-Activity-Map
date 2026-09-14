@@ -10,6 +10,8 @@ import {
   formatHr,
   formatKmhValue,
   formatKmValue,
+  formatPower,
+  formatWattsValue,
   formatRelativeTime,
   formatSpeed,
   movingSpeedMps,
@@ -139,5 +141,24 @@ describe("value-only formatters", () => {
   it("formatBpmValue handles null", () => {
     expect(formatBpmValue(110.4)).toBe("110");
     expect(formatBpmValue(null)).toBe("—");
+  });
+
+  it("formatWattsValue handles null", () => {
+    expect(formatWattsValue(211.6)).toBe("212");
+    expect(formatWattsValue(null)).toBe("—");
+  });
+});
+
+describe("formatPower", () => {
+  it("shows normalised power alongside the average when there is one", () => {
+    expect(formatPower({ avg_power_w: 204.4, norm_power_w: 221.7 })).toBe("204 W (NP 222 W)");
+  });
+
+  it("drops the bracket when only an average was recorded", () => {
+    expect(formatPower({ avg_power_w: 204.4, norm_power_w: null })).toBe("204 W");
+  });
+
+  it("is a dash for an activity ridden without the meter", () => {
+    expect(formatPower({ avg_power_w: null, norm_power_w: null })).toBe("—");
   });
 });

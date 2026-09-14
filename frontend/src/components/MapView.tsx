@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import L from "leaflet";
 import { MapContainer, TileLayer, Polyline, Tooltip, useMap } from "react-leaflet";
 import type { Activity, ActivityKind } from "../types";
-import { formatDate, formatDistance, formatSpeed, formatHr, movingSpeedMps } from "../lib/format";
+import { formatDate, formatDistance, formatSpeed, formatHr, formatPower, movingSpeedMps } from "../lib/format";
 import { FREQUENCY_GRADIENT_CSS } from "../lib/colors";
 import { DATE_RANGE_OPTIONS, DATE_RANGE_LABELS, filterByDateRange, type DateRangeOption } from "../lib/dateRange";
 import { createVisitIndex, nearestPointOnTrack, type VisitIndex } from "../lib/visitCounts";
@@ -421,6 +421,12 @@ function ActivityPolyline({ activity, isHighlighted, isSelected, onHover, visitI
         {formatDistance(activity.distance_m)} · {formatSpeed(movingSpeedMps(activity))}
         <br />
         Avg HR: {formatHr(activity.avg_hr)}
+        {activity.avg_power_w !== null && (
+          <>
+            <br />
+            Power: {formatPower(activity)}
+          </>
+        )}
         {visitsHere !== null && (
           <>
             <br />

@@ -31,6 +31,20 @@ export interface Activity {
   vigorous_intensity_min: number | null;
   /** Seconds spent in heart-rate zones 1..5, in order. */
   hr_time_in_zone_s: number[] | null;
+  /**
+   * Power-meter figures, from the parallel Wahoo recording of the same outing
+   * — the meter pairs to the phone, so the watch never sees any of this. Null
+   * on every activity ridden without the meter, which is most of them.
+   */
+  wahoo_workout_id: number | null;
+  avg_power_w: number | null;
+  /** Normalised power: the steady effort that would have cost what this did. */
+  norm_power_w: number | null;
+  /** Training stress score, unitless. */
+  tss: number | null;
+  work_kj: number | null;
+  /** Crank rpm — a different measurement from `avg_cadence_spm`, the watch's steps. */
+  avg_cadence_rpm: number | null;
   start_lat: number | null;
   start_lng: number | null;
   end_lat: number | null;

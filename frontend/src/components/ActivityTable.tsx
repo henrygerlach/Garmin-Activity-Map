@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatKmValue,
   formatKmhValue,
+  formatWattsValue,
   movingSpeedMps,
 } from "../lib/format";
 import { RouteGlyph } from "./RouteGlyph";
@@ -16,7 +17,7 @@ const TYPE_LABEL: Record<Activity["type"], string> = {
   bike: "Bike",
 };
 
-type SortColumn = "type" | "date" | "distance" | "movingTime" | "speed" | "hr";
+type SortColumn = "type" | "date" | "distance" | "movingTime" | "speed" | "hr" | "power";
 type SortDirection = "asc" | "desc";
 
 const COLUMNS: { key: SortColumn; label: string; unit?: string }[] = [
@@ -26,6 +27,7 @@ const COLUMNS: { key: SortColumn; label: string; unit?: string }[] = [
   { key: "movingTime", label: "Moving" },
   { key: "speed", label: "Speed", unit: "km/h" },
   { key: "hr", label: "Avg HR", unit: "bpm" },
+  { key: "power", label: "Power", unit: "W" },
 ];
 
 // A new column defaults to the ordering that puts the "interesting" end
@@ -37,6 +39,7 @@ const DEFAULT_DIRECTION: Record<SortColumn, SortDirection> = {
   movingTime: "desc",
   speed: "desc",
   hr: "desc",
+  power: "desc",
 };
 
 function sortValue(activity: Activity, column: SortColumn): number | string {
@@ -53,6 +56,8 @@ function sortValue(activity: Activity, column: SortColumn): number | string {
       return movingSpeedMps(activity) ?? -1;
     case "hr":
       return activity.avg_hr ?? -1;
+    case "power":
+      return activity.avg_power_w ?? -1;
   }
 }
 
@@ -166,6 +171,7 @@ export function ActivityTable({ activities, hoveredId, onHover, selectedId, onSe
               <td className="activity-table__num">{formatDuration(activity.moving_duration_s)}</td>
               <td className="activity-table__num">{formatKmhValue(movingSpeedMps(activity))}</td>
               <td className="activity-table__num">{formatBpmValue(activity.avg_hr)}</td>
+              <td className="activity-table__num">{formatWattsValue(activity.avg_power_w)}</td>
             </tr>
           );
         })}
