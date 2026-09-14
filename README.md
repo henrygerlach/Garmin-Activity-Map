@@ -50,6 +50,12 @@ Twelve summary tiles, then a column of charts: a GitHub-style activity calendar,
 
 One **Sync** button. It pulls new activities from Garmin Connect, reports how long ago the last sync ran, and surfaces login failures as sentences rather than stack traces.
 
+### Power
+
+My power meter pairs to the phone, not to the watch, so every ride gets recorded twice — the watch for GPS, the Wahoo app for watts. The sync pulls the Wahoo side too and writes average power, normalised power, TSS, work and crank cadence onto the *watch's* activity, matched by which recordings overlap in time. Nothing new appears on the map: there is still one trace per outing, and it's still the accurate one.
+
+Optional. With no Wahoo credentials in `.env` the step is skipped, and if Wahoo is down the Garmin sync still succeeds and reports the problem separately.
+
 ---
 
 ## Architecture
@@ -98,6 +104,20 @@ supabase start && supabase db reset
 ```
 
 `supabase status` prints the local `API_URL`, `ANON_KEY` and `SERVICE_ROLE_KEY` for `.env`. Then open the app and press **Sync** — the first run backfills the full history slowly, since Garmin is called once per activity with a delay to stay under rate limits. Later syncs only fetch what's missing. `supabase stop` shuts it down.
+
+<details>
+<summary><strong>Wahoo power</strong> (optional)</summary>
+
+Register an application at [developers.wahooligan.com](https://developers.wahooligan.com/) with the `user_read` and `workouts_read` scopes — Wahoo reviews each request by hand, and a sandbox app cannot be promoted to production later, so ask for what you actually want. Put the client ID, secret and the redirect URI you registered into `.env`, then authorise once:
+
+```bash
+(cd backend && npm run wahoo:auth)          # prints a consent URL
+(cd backend && npm run wahoo:auth -- CODE)  # CODE from the redirect's address bar
+```
+
+The redirect page won't load, and doesn't need to — only the `?code=` in the address bar matters. Wahoo insists the redirect URI be `https`, which is why the example one is, despite there being no TLS listener on that port and no listener at all: the browser fails to connect and keeps the URL, which is the whole job. Wahoo rotates refresh tokens on every use, so the token lives in the database rather than in `.env`, and this is a one-time step unless access is revoked.
+
+</details>
 
 <details>
 <summary><strong>Spotlight launcher</strong> (macOS)</summary>
