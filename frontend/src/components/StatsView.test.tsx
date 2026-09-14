@@ -26,6 +26,28 @@ describe("StatsView", () => {
     expect(screen.getByRole("heading", { name: "Activities by hour of day" })).toBeInTheDocument();
   });
 
+  it("shows the cycling power cards only for rides recorded with the meter", () => {
+    const plain = [makeActivity({ id: "1", type: "bike", start_time: "2026-01-07T08:00:00Z" })];
+    const { rerender } = render(<StatsView activities={plain} dailyMetrics={[]} />);
+    expect(screen.queryByRole("heading", { name: "Cycling power" })).not.toBeInTheDocument();
+
+    const withPower = [
+      makeActivity({
+        id: "1",
+        type: "bike",
+        start_time: "2026-01-07T08:00:00Z",
+        avg_power_w: 204,
+        norm_power_w: 221,
+        tss: 68,
+        avg_cadence_rpm: 84,
+      }),
+    ];
+    rerender(<StatsView activities={withPower} dailyMetrics={[]} />);
+    expect(screen.getByRole("heading", { name: "Cycling power" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cycling cadence" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cycling training load" })).toBeInTheDocument();
+  });
+
   it("shows an em dash for wellness tiles with no data", () => {
     const activities = [makeActivity()];
     render(<StatsView activities={activities} dailyMetrics={[]} />);

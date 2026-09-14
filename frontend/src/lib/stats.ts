@@ -194,13 +194,28 @@ export function computeWeeklyAvgSpeedKmh(buckets: WeekBucket[], activities: Acti
   });
 }
 
-export function computeWeeklyAvgHr(buckets: WeekBucket[], activities: Activity[], type: ActivityKind): SeriesPoint[] {
+/** Weekly mean of one per-activity figure, with a gap for weeks that have none. */
+export function computeWeeklyAvg(
+  buckets: WeekBucket[],
+  activities: Activity[],
+  type: ActivityKind,
+  pick: (activity: Activity) => number | null,
+): SeriesPoint[] {
   return buckets.map((bucket) => {
-    const hrs = activitiesInWeek(activities, type, bucket)
-      .map((a) => a.avg_hr)
+    const values = activitiesInWeek(activities, type, bucket)
+      .map(pick)
       .filter((v): v is number => v !== null);
-    const avg = average(hrs);
+    const avg = average(values);
     return { label: bucket.label, value: avg === null ? null : Math.round(avg) };
+  });
+}
+
+// Training stress summed over the week, which is how a training load is read —
+// a single hard ride and three easy ones are the same week's work.
+export function computeWeeklyTss(buckets: WeekBucket[], activities: Activity[]): Bucket[] {
+  return buckets.map((bucket) => {
+    const tss = activitiesInWeek(activities, "bike", bucket).reduce((sum, a) => sum + (a.tss ?? 0), 0);
+    return { label: bucket.label, value: Math.round(tss) };
   });
 }
 

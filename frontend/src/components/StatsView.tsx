@@ -8,11 +8,12 @@ import {
   computeDailyActivity,
   computeSummary,
   computeWeekBuckets,
-  computeWeeklyAvgHr,
+  computeWeeklyAvg,
   computeWeeklyAvgSpeedKmh,
   computeWeeklyDailyAvg,
   computeWeeklyDistanceKm,
   computeWeeklySteps,
+  computeWeeklyTss,
   computeWellnessSummary,
 } from "../lib/stats";
 import { BarChart } from "./BarChart";
@@ -100,12 +101,37 @@ export function StatsView({ activities, dailyMetrics }: StatsViewProps) {
     () => computeWeeklyAvgSpeedKmh(weekBuckets, activities, "bike"),
     [weekBuckets, activities],
   );
-  const weeklyWalkHr = useMemo(() => computeWeeklyAvgHr(weekBuckets, activities, "walk"), [weekBuckets, activities]);
-  const weeklyRunHr = useMemo(() => computeWeeklyAvgHr(weekBuckets, activities, "run"), [weekBuckets, activities]);
-  const weeklyBikeHr = useMemo(() => computeWeeklyAvgHr(weekBuckets, activities, "bike"), [weekBuckets, activities]);
+  const weeklyWalkHr = useMemo(
+    () => computeWeeklyAvg(weekBuckets, activities, "walk", (a) => a.avg_hr),
+    [weekBuckets, activities],
+  );
+  const weeklyRunHr = useMemo(
+    () => computeWeeklyAvg(weekBuckets, activities, "run", (a) => a.avg_hr),
+    [weekBuckets, activities],
+  );
+  const weeklyBikeHr = useMemo(
+    () => computeWeeklyAvg(weekBuckets, activities, "bike", (a) => a.avg_hr),
+    [weekBuckets, activities],
+  );
+  const weeklyAvgPower = useMemo(
+    () => computeWeeklyAvg(weekBuckets, activities, "bike", (a) => a.avg_power_w),
+    [weekBuckets, activities],
+  );
+  const weeklyNormPower = useMemo(
+    () => computeWeeklyAvg(weekBuckets, activities, "bike", (a) => a.norm_power_w),
+    [weekBuckets, activities],
+  );
+  const weeklyCadenceRpm = useMemo(
+    () => computeWeeklyAvg(weekBuckets, activities, "bike", (a) => a.avg_cadence_rpm),
+    [weekBuckets, activities],
+  );
+  const weeklyTss = useMemo(() => computeWeeklyTss(weekBuckets, activities), [weekBuckets, activities]);
   const byDay = useMemo(() => computeByDayOfWeek(recent), [recent]);
   const byHour = useMemo(() => computeByHourOfDay(recent), [recent]);
   const dailyActivity = useMemo(() => computeDailyActivity(activities), [activities]);
+  // Power comes from the Wahoo meter, which is paired on a minority of rides —
+  // with none of it, these cards would be three empty axes.
+  const hasPower = useMemo(() => activities.some((a) => a.avg_power_w !== null), [activities]);
 
   if (activities.length === 0) {
     return <p className="empty-state">Nothing logged yet. Sync to pull your walks, runs and rides from Garmin Connect.</p>;
@@ -219,6 +245,50 @@ export function StatsView({ activities, dailyMetrics }: StatsViewProps) {
             visiblePoints={VISIBLE_WEEKS_HALF_ROW}
           />
         </section>
+
+        {hasPower && (
+          <>
+            <section className="chart-card">
+              <h2>Cycling power</h2>
+              <p className="chart-card__subtitle">
+                Weekly average of each ride's average power, and of its normalised power
+              </p>
+              <LineChart
+                title="Cycling power"
+                series={[
+                  { name: "Average", color: ACTIVITY_COLORS.bike, data: weeklyAvgPower },
+                  { name: "Normalised", color: CHART_NEUTRAL, data: weeklyNormPower, dashed: true },
+                ]}
+                valueFormatter={(v) => `${Math.round(v)} W`}
+                labelEvery={halfRowLabelEvery}
+                visiblePoints={VISIBLE_WEEKS_HALF_ROW}
+              />
+            </section>
+            <section className="chart-card">
+              <h2>Cycling cadence</h2>
+              <p className="chart-card__subtitle">Weekly average crank cadence from the power meter</p>
+              <LineChart
+                title="Cycling cadence"
+                series={[{ name: "Cadence", color: ACTIVITY_COLORS.bike, data: weeklyCadenceRpm }]}
+                valueFormatter={(v) => `${Math.round(v)} rpm`}
+                labelEvery={halfRowLabelEvery}
+                visiblePoints={VISIBLE_WEEKS_HALF_ROW}
+              />
+            </section>
+            <section className="chart-card chart-card--wide">
+              <h2>Cycling training load</h2>
+              <p className="chart-card__subtitle">Training stress score, summed over each week</p>
+              <BarChart
+                title="Cycling training load"
+                data={weeklyTss}
+                color={ACTIVITY_COLORS.bike}
+                valueFormatter={(v) => `${v} TSS`}
+                labelEvery={weeklyLabelEvery}
+                visibleBuckets={VISIBLE_WEEKS}
+              />
+            </section>
+          </>
+        )}
 
         <section className="chart-card">
           <h2>Heart rate awake and at rest</h2>

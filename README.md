@@ -44,7 +44,7 @@ Every activity in a sortable sidebar, each row carrying a **miniature of its own
 
 ### Statistics
 
-Twelve summary tiles, then a column of charts: a GitHub-style activity calendar, weekly volume, steps, resting heart rate and HRV, speed and heart-rate progression per activity type, and activity patterns by weekday and hour.
+Twelve summary tiles, then a column of charts: a GitHub-style activity calendar, weekly volume, steps, resting heart rate and HRV, speed and heart-rate progression per activity type, and activity patterns by weekday and hour. Rides recorded with the power meter add three more: power and cadence progression, and weekly training load.
 
 ### Sync
 
@@ -52,7 +52,7 @@ One **Sync** button. It pulls new activities from Garmin Connect, reports how lo
 
 ### Power
 
-My power meter pairs to the phone, not to the watch, so every ride gets recorded twice — the watch for GPS, the Wahoo app for watts. The sync pulls the Wahoo side too and writes average power, normalised power, TSS, work and crank cadence onto the *watch's* activity, matched by which recordings overlap in time. Nothing new appears on the map: there is still one trace per outing, and it's still the accurate one.
+My power meter pairs to the phone, not to the watch, so every ride gets recorded twice — the watch for GPS, the Wahoo app for watts. The sync pulls the Wahoo side too and writes average power, normalised power, TSS, work and crank cadence onto the *watch's* activity, matched by which recordings overlap in time. Those show up in the statistics charts and in the map tooltip. Nothing new appears on the map: there is still one trace per outing, and it's still the accurate one.
 
 Optional. With no Wahoo credentials in `.env` the step is skipped, and if Wahoo is down the Garmin sync still succeeds and reports the problem separately.
 

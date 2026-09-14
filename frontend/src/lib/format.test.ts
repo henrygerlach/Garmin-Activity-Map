@@ -11,7 +11,6 @@ import {
   formatKmhValue,
   formatKmValue,
   formatPower,
-  formatWattsValue,
   formatRelativeTime,
   formatSpeed,
   movingSpeedMps,
@@ -141,11 +140,6 @@ describe("value-only formatters", () => {
   it("formatBpmValue handles null", () => {
     expect(formatBpmValue(110.4)).toBe("110");
     expect(formatBpmValue(null)).toBe("—");
-  });
-
-  it("formatWattsValue handles null", () => {
-    expect(formatWattsValue(211.6)).toBe("212");
-    expect(formatWattsValue(null)).toBe("—");
   });
 });
 

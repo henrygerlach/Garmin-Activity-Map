@@ -6,7 +6,7 @@ import {
   computeDailyActivity,
   computeSummary,
   computeWeekBuckets,
-  computeWeeklyAvgHr,
+  computeWeeklyAvg,
   computeWeeklyAvgSpeedKmh,
   computeWeeklyDailyAvg,
   computeWeeklyDistanceKm,
@@ -75,7 +75,7 @@ describe("computeWeekBuckets", () => {
   });
 });
 
-describe("computeWeeklyDistanceKm / computeWeeklyAvgHr", () => {
+describe("computeWeeklyDistanceKm / computeWeeklyAvg", () => {
   it("sums distance and averages heart rate per week, per type", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-05T12:00:00Z")); // Monday
@@ -88,10 +88,10 @@ describe("computeWeeklyDistanceKm / computeWeeklyAvgHr", () => {
     const walkDistance = computeWeeklyDistanceKm(buckets, activities, "walk");
     expect(walkDistance).toEqual([{ label: buckets[0].label, value: 5 }]);
 
-    const walkHr = computeWeeklyAvgHr(buckets, activities, "walk");
+    const walkHr = computeWeeklyAvg(buckets, activities, "walk", (a) => a.avg_hr);
     expect(walkHr).toEqual([{ label: buckets[0].label, value: 110 }]);
 
-    const bikeHr = computeWeeklyAvgHr(buckets, activities, "bike");
+    const bikeHr = computeWeeklyAvg(buckets, activities, "bike", (a) => a.avg_hr);
     expect(bikeHr).toEqual([{ label: buckets[0].label, value: null }]);
     vi.useRealTimers();
   });

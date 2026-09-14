@@ -91,11 +91,6 @@ export function formatBpmValue(bpm: number | null): string {
   return String(Math.round(bpm));
 }
 
-export function formatWattsValue(watts: number | null): string {
-  if (watts === null) return "—";
-  return String(Math.round(watts));
-}
-
 // Avg power with normalised power alongside it when there is one: over rolling
 // ground the two diverge, and the gap between them is the point.
 export function formatPower(activity: { avg_power_w: number | null; norm_power_w: number | null }): string {
