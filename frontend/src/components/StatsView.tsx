@@ -171,85 +171,96 @@ export function StatsView({ activities, dailyMetrics }: StatsViewProps) {
         </div>
       </div>
 
-      <div className="chart-grid">
-        <section className="chart-card chart-card--wide">
-          <h2>Activity calendar</h2>
-          <p className="chart-card__subtitle">Daily distance, all activity types combined</p>
-          <CalendarHeatmap days={dailyActivity} title="Activity calendar" />
-        </section>
+      <section className="chart-group">
+        <h2 className="chart-group__title">Volume</h2>
+        <div className="chart-grid">
+          <section className="chart-card chart-card--wide">
+            <h3>Activity calendar</h3>
+            <p className="chart-card__subtitle">Daily distance, all activity types combined</p>
+            <CalendarHeatmap days={dailyActivity} title="Activity calendar" />
+          </section>
 
-        <section className="chart-card chart-card--wide">
-          <h2>Weekly steps</h2>
-          <p className="chart-card__subtitle">All-day totals from Garmin, not only steps taken during an activity</p>
-          <BarChart
-            title="Weekly steps"
-            data={weeklySteps}
-            color={ACTIVITY_COLORS.walk}
-            valueFormatter={(v) => `${v.toLocaleString()} steps`}
-            labelEvery={weeklyLabelEvery}
-            visibleBuckets={VISIBLE_WEEKS}
-          />
-        </section>
-        <section className="chart-card">
-          <h2>Weekly running distance</h2>
-          <p className="chart-card__subtitle">Last six months; scroll back for the rest</p>
-          <BarChart
-            title="Weekly running distance"
-            data={weeklyRunDistance}
-            color={ACTIVITY_COLORS.run}
-            valueFormatter={(v) => `${v.toFixed(1)} km`}
-            labelEvery={halfRowLabelEvery}
-            visibleBuckets={VISIBLE_WEEKS_HALF_ROW}
-          />
-        </section>
-        <section className="chart-card">
-          <h2>Weekly cycling distance</h2>
-          <p className="chart-card__subtitle">Last six months; scroll back for the rest</p>
-          <BarChart
-            title="Weekly cycling distance"
-            data={weeklyBikeDistance}
-            color={ACTIVITY_COLORS.bike}
-            valueFormatter={(v) => `${v.toFixed(1)} km`}
-            labelEvery={halfRowLabelEvery}
-            visibleBuckets={VISIBLE_WEEKS_HALF_ROW}
-          />
-        </section>
+          <section className="chart-card chart-card--wide">
+            <h3>Weekly steps</h3>
+            <p className="chart-card__subtitle">All-day totals from Garmin, not only steps taken during an activity</p>
+            <BarChart
+              title="Weekly steps"
+              data={weeklySteps}
+              color={ACTIVITY_COLORS.walk}
+              valueFormatter={(v) => `${v.toLocaleString()} steps`}
+              labelEvery={weeklyLabelEvery}
+              visibleBuckets={VISIBLE_WEEKS}
+            />
+          </section>
+          <section className="chart-card">
+            <h3>Weekly running distance</h3>
+            <p className="chart-card__subtitle">Last six months; scroll back for the rest</p>
+            <BarChart
+              title="Weekly running distance"
+              data={weeklyRunDistance}
+              color={ACTIVITY_COLORS.run}
+              valueFormatter={(v) => `${v.toFixed(1)} km`}
+              labelEvery={halfRowLabelEvery}
+              visibleBuckets={VISIBLE_WEEKS_HALF_ROW}
+            />
+          </section>
+          <section className="chart-card">
+            <h3>Weekly cycling distance</h3>
+            <p className="chart-card__subtitle">Last six months; scroll back for the rest</p>
+            <BarChart
+              title="Weekly cycling distance"
+              data={weeklyBikeDistance}
+              color={ACTIVITY_COLORS.bike}
+              valueFormatter={(v) => `${v.toFixed(1)} km`}
+              labelEvery={halfRowLabelEvery}
+              visibleBuckets={VISIBLE_WEEKS_HALF_ROW}
+            />
+          </section>
+        </div>
+      </section>
 
-        <section className="chart-card">
-          <h2>Speed progression</h2>
-          <p className="chart-card__subtitle">Weekly average moving speed (excludes time stopped)</p>
-          <LineChart
-            title="Speed progression"
-            series={[
-              { name: "Walk", color: ACTIVITY_COLORS.walk, data: weeklyWalkSpeed },
-              { name: "Run", color: ACTIVITY_COLORS.run, data: weeklyRunSpeed },
-              { name: "Bike", color: ACTIVITY_COLORS.bike, data: weeklyBikeSpeed, dashed: true },
-            ]}
-            valueFormatter={(v) => `${v.toFixed(1)} km/h`}
-            labelEvery={halfRowLabelEvery}
-            visiblePoints={VISIBLE_WEEKS_HALF_ROW}
-          />
-        </section>
-        <section className="chart-card">
-          <h2>Heart rate progression</h2>
-          <p className="chart-card__subtitle">Weekly average heart rate</p>
-          <LineChart
-            title="Heart rate progression"
-            series={[
-              { name: "Walk", color: ACTIVITY_COLORS.walk, data: weeklyWalkHr },
-              { name: "Run", color: ACTIVITY_COLORS.run, data: weeklyRunHr },
-              { name: "Bike", color: ACTIVITY_COLORS.bike, data: weeklyBikeHr, dashed: true },
-            ]}
-            valueFormatter={(v) => `${Math.round(v)} bpm`}
-            labelEvery={halfRowLabelEvery}
-            visiblePoints={VISIBLE_WEEKS_HALF_ROW}
-          />
-        </section>
+      <section className="chart-group">
+        <h2 className="chart-group__title">Performance</h2>
+        <div className="chart-grid">
+          <section className="chart-card">
+            <h3>Speed progression</h3>
+            <p className="chart-card__subtitle">Weekly average moving speed (excludes time stopped)</p>
+            <LineChart
+              title="Speed progression"
+              series={[
+                { name: "Walk", color: ACTIVITY_COLORS.walk, data: weeklyWalkSpeed },
+                { name: "Run", color: ACTIVITY_COLORS.run, data: weeklyRunSpeed },
+                { name: "Bike", color: ACTIVITY_COLORS.bike, data: weeklyBikeSpeed, dashed: true },
+              ]}
+              valueFormatter={(v) => `${v.toFixed(1)} km/h`}
+              labelEvery={halfRowLabelEvery}
+              visiblePoints={VISIBLE_WEEKS_HALF_ROW}
+            />
+          </section>
+          <section className="chart-card">
+            <h3>Heart rate progression</h3>
+            <p className="chart-card__subtitle">Weekly average heart rate</p>
+            <LineChart
+              title="Heart rate progression"
+              series={[
+                { name: "Walk", color: ACTIVITY_COLORS.walk, data: weeklyWalkHr },
+                { name: "Run", color: ACTIVITY_COLORS.run, data: weeklyRunHr },
+                { name: "Bike", color: ACTIVITY_COLORS.bike, data: weeklyBikeHr, dashed: true },
+              ]}
+              valueFormatter={(v) => `${Math.round(v)} bpm`}
+              labelEvery={halfRowLabelEvery}
+              visiblePoints={VISIBLE_WEEKS_HALF_ROW}
+            />
+          </section>
+        </div>
+      </section>
 
-        {hasPower && (
-          <>
+      {hasPower && (
+        <section className="chart-group">
+          <h2 className="chart-group__title">Cycling</h2>
+          <div className="chart-grid">
             <section className="chart-card">
-              <h2>Cycling power</h2>
+              <h3>Cycling power</h3>
               <p className="chart-card__subtitle">
                 Weekly average of each ride's average power, and of its normalised power
               </p>
@@ -265,7 +276,7 @@ export function StatsView({ activities, dailyMetrics }: StatsViewProps) {
               />
             </section>
             <section className="chart-card">
-              <h2>Cycling cadence</h2>
+              <h3>Cycling cadence</h3>
               <p className="chart-card__subtitle">Weekly average crank cadence from the power meter</p>
               <LineChart
                 title="Cycling cadence"
@@ -276,7 +287,7 @@ export function StatsView({ activities, dailyMetrics }: StatsViewProps) {
               />
             </section>
             <section className="chart-card chart-card--wide">
-              <h2>Cycling training load</h2>
+              <h3>Cycling training load</h3>
               <p className="chart-card__subtitle">Training stress score, summed over each week</p>
               <BarChart
                 title="Cycling training load"
@@ -287,57 +298,67 @@ export function StatsView({ activities, dailyMetrics }: StatsViewProps) {
                 visibleBuckets={VISIBLE_WEEKS}
               />
             </section>
-          </>
-        )}
+          </div>
+        </section>
+      )}
 
-        <section className="chart-card">
-          <h2>Heart rate awake and at rest</h2>
-          <p className="chart-card__subtitle">
-            Weekly averages of every sample taken while awake, and of Garmin's overnight resting reading
-          </p>
-          <LineChart
-            title="Heart rate awake and at rest"
-            series={[
-              { name: "Awake", color: ACTIVITY_COLORS.walk, data: weeklyWakingHr },
-              { name: "Resting", color: CHART_NEUTRAL, data: weeklyRestingHr },
-            ]}
-            valueFormatter={(v) => `${Math.round(v)} bpm`}
-            labelEvery={halfRowLabelEvery}
-            visiblePoints={VISIBLE_WEEKS_HALF_ROW}
-          />
-        </section>
-        <section className="chart-card">
-          <h2>Heart rate variability</h2>
-          <p className="chart-card__subtitle">Weekly average of the overnight HRV average</p>
-          <LineChart
-            title="Heart rate variability"
-            series={[{ name: "HRV", color: CHART_NEUTRAL, data: weeklyHrv }]}
-            valueFormatter={(v) => `${Math.round(v)} ms`}
-            labelEvery={halfRowLabelEvery}
-            visiblePoints={VISIBLE_WEEKS_HALF_ROW}
-          />
-        </section>
+      <section className="chart-group">
+        <h2 className="chart-group__title">Physiological</h2>
+        <div className="chart-grid">
+          <section className="chart-card">
+            <h3>Heart rate awake and at rest</h3>
+            <p className="chart-card__subtitle">
+              Weekly averages of every sample taken while awake, and of Garmin's overnight resting reading
+            </p>
+            <LineChart
+              title="Heart rate awake and at rest"
+              series={[
+                { name: "Awake", color: ACTIVITY_COLORS.walk, data: weeklyWakingHr },
+                { name: "Resting", color: CHART_NEUTRAL, data: weeklyRestingHr },
+              ]}
+              valueFormatter={(v) => `${Math.round(v)} bpm`}
+              labelEvery={halfRowLabelEvery}
+              visiblePoints={VISIBLE_WEEKS_HALF_ROW}
+            />
+          </section>
+          <section className="chart-card">
+            <h3>Heart rate variability</h3>
+            <p className="chart-card__subtitle">Weekly average of the overnight HRV average</p>
+            <LineChart
+              title="Heart rate variability"
+              series={[{ name: "HRV", color: CHART_NEUTRAL, data: weeklyHrv }]}
+              valueFormatter={(v) => `${Math.round(v)} ms`}
+              labelEvery={halfRowLabelEvery}
+              visiblePoints={VISIBLE_WEEKS_HALF_ROW}
+            />
+          </section>
+        </div>
+      </section>
 
-        <section className="chart-card">
-          <h2>Activities by day of week</h2>
-          <BarChart
-            title="Activities by day of week"
-            data={byDay}
-            color={CHART_NEUTRAL}
-            valueFormatter={(v) => `${v} activities`}
-          />
-        </section>
-        <section className="chart-card">
-          <h2>Activities by hour of day</h2>
-          <BarChart
-            title="Activities by hour of day"
-            data={byHour}
-            color={CHART_NEUTRAL}
-            valueFormatter={(v) => `${v} activities`}
-            labelEvery={3}
-          />
-        </section>
-      </div>
+      <section className="chart-group">
+        <h2 className="chart-group__title">Habits</h2>
+        <div className="chart-grid">
+          <section className="chart-card">
+            <h3>Activities by day of week</h3>
+            <BarChart
+              title="Activities by day of week"
+              data={byDay}
+              color={CHART_NEUTRAL}
+              valueFormatter={(v) => `${v} activities`}
+            />
+          </section>
+          <section className="chart-card">
+            <h3>Activities by hour of day</h3>
+            <BarChart
+              title="Activities by hour of day"
+              data={byHour}
+              color={CHART_NEUTRAL}
+              valueFormatter={(v) => `${v} activities`}
+              labelEvery={3}
+            />
+          </section>
+        </div>
+      </section>
     </div>
   );
 }
