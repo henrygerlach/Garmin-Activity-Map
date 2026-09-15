@@ -110,23 +110,27 @@ else
   step "Supabase was not running."
 fi
 
-if docker info >/dev/null 2>&1; then
-  if command -v colima >/dev/null 2>&1 && colima status >/dev/null 2>&1; then
-    step "Stopping colima ..."
-    if colima stop >>"$RUN_DIR/colima.log" 2>&1; then
-      step "Colima stopped."
-    else
-      echo "colima stop failed"
-      notify "Error: colima stop failed - see .run/colima.log"
-    fi
+if ! docker info >/dev/null 2>&1; then
+  step "Docker was not running."
+elif [ -n "$(docker ps -q 2>/dev/null)" ]; then
+  # The container runtime is shared with the other projects that have a Spotlight
+  # launcher (the Comdirect dashboards, the Kognitions-Tracker). Supabase is already
+  # down at this point, so every container still standing belongs to somebody else —
+  # stopping the runtime would pull the VM out from under all of them at once.
+  step "Leaving Docker running - other containers are still using it."
+elif command -v colima >/dev/null 2>&1 && colima status >/dev/null 2>&1; then
+  step "Stopping colima ..."
+  if colima stop >>"$RUN_DIR/colima.log" 2>&1; then
+    step "Colima stopped."
   else
-    step "Quitting Docker ..."
-    osascript -e 'quit app "Docker"' >/dev/null 2>&1
-    step "Docker quit."
+    echo "colima stop failed"
+    notify "Error: colima stop failed - see .run/colima.log"
   fi
 else
-  step "Docker was not running."
+  step "Quitting Docker ..."
+  osascript -e 'quit app "Docker"' >/dev/null 2>&1
+  step "Docker quit."
 fi
 
 echo "Done."
-notify "Done - frontend, backend, Supabase, and Docker are stopped."
+notify "Done - frontend, backend, and Supabase are stopped."
