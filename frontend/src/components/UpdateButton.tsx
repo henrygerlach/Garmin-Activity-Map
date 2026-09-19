@@ -20,11 +20,12 @@ function loadLastSync(): LastSync | null {
 
 interface UpdateButtonProps {
   apiBaseUrl: string;
+  accessToken: string;
   onSynced: () => Promise<void> | void;
   onSyncError: (message: string | null) => void;
 }
 
-export function UpdateButton({ apiBaseUrl, onSynced, onSyncError }: UpdateButtonProps) {
+export function UpdateButton({ apiBaseUrl, accessToken, onSynced, onSyncError }: UpdateButtonProps) {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<LastSync | null>(() => loadLastSync());
   // Re-render periodically so "5m ago" keeps advancing without a manual refresh.
@@ -39,7 +40,10 @@ export function UpdateButton({ apiBaseUrl, onSynced, onSyncError }: UpdateButton
     setSyncing(true);
     onSyncError(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/api/sync`, { method: "POST" });
+      const res = await fetch(`${apiBaseUrl}/api/sync`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sync failed");
       const synced = data.synced as number;

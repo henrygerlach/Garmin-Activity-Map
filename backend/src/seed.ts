@@ -8,13 +8,16 @@ import { generateDemoDailyMetrics, generateDemoHistory } from "./demoData.js";
 import { supabase } from "./supabase.js";
 
 /**
- * Replaces the database with a synthetic history, so the app can be
+ * Replaces one user's data with a synthetic history, so the app can be
  * screenshotted and recorded for the README without publishing a real home
  * address or a real training log. See `demoData.ts` for how the history is
  * built. Usage:
  *
- *   npm run seed:demo      back up the real data, then wipe and seed
- *   npm run seed:restore   wipe the demo data and put the real data back
+ *   npm run seed:demo -- <user-id>      back up that user's data, then wipe and seed it
+ *   npm run seed:restore -- <user-id>   wipe the demo data and put the real data back
+ *
+ * `<user-id>` is the Supabase account's id, from Studio > Authentication. Only
+ * that account's rows are touched — everyone else's data is untouched.
  *
  * The backup is what makes this safe to run on a working database: it holds
  * the real rows verbatim, so restoring is instant instead of a fresh Garmin
@@ -22,7 +25,10 @@ import { supabase } from "./supabase.js";
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BACKUP_PATH = path.resolve(__dirname, "../.demo-backup.json");
+const args = process.argv.slice(2);
+const userId = args.find((arg) => arg !== "--restore");
+if (!userId) throw new Error("Usage: npm run seed:demo -- <user-id>  (or seed:restore)");
+const BACKUP_PATH = path.resolve(__dirname, `../.demo-backup.${userId}.json`);
 
 // PostgREST caps how much it returns per request, and the stream rows are
 // large, so both directions move in pages small enough to stay well inside it.
@@ -42,6 +48,7 @@ async function readAll(table: string, orderBy = "garmin_activity_id"): Promise<R
     const { data, error } = await supabase
       .from(table)
       .select("*")
+      .eq("user_id", userId)
       .order(orderBy)
       .range(page * READ_PAGE, page * READ_PAGE + READ_PAGE - 1);
     if (error) throw error;
@@ -61,14 +68,12 @@ async function insertAll(table: string, rows: Record<string, unknown>[]): Promis
 
 async function wipe(): Promise<void> {
   // `activity_streams` would go with its parent by cascade, but deleting it
-  // first keeps the intent visible rather than relying on the schema.
-  for (const table of ["activity_streams", "activities"]) {
-    const { error } = await supabase.from(table).delete().gte("garmin_activity_id", 0);
+  // first keeps the intent visible rather than relying on the schema. Scoped
+  // to this user throughout — the table holds every family member's data.
+  for (const table of ["activity_streams", "activities", "daily_metrics"]) {
+    const { error } = await supabase.from(table).delete().eq("user_id", userId);
     if (error) throw error;
   }
-  // Keyed by date rather than by activity id, so it needs its own predicate.
-  const { error } = await supabase.from("daily_metrics").delete().gte("calendar_date", "1970-01-01");
-  if (error) throw error;
 }
 
 async function backup(): Promise<void> {
@@ -113,7 +118,7 @@ async function seed(): Promise<void> {
   // The streams row is keyed by the activity's uuid, which only exists once the
   // parent row is written, so the insert has to hand the ids back.
   const idByGarminId = new Map<number, string>();
-  const activities = generated.map((g) => g.activity);
+  const activities = generated.map((g) => ({ ...g.activity, user_id: userId }));
   for (let i = 0; i < activities.length; i += WRITE_CHUNK) {
     const { data, error } = await supabase
       .from("activities")
@@ -129,12 +134,16 @@ async function seed(): Promise<void> {
     generated.map((g) => ({
       activity_id: idByGarminId.get(g.activity.garmin_activity_id),
       garmin_activity_id: g.activity.garmin_activity_id,
+      user_id: userId,
       ...g.streams,
     })),
   );
-  await insertAll("daily_metrics", dailyMetrics as unknown as Record<string, unknown>[]);
+  await insertAll(
+    "daily_metrics",
+    (dailyMetrics as unknown as Record<string, unknown>[]).map((m) => ({ ...m, user_id: userId })),
+  );
 
-  console.log("Done. The app now shows synthetic data — run `npm run seed:restore` to get the real history back.");
+  console.log(`Done. The app now shows synthetic data — run \`npm run seed:restore -- ${userId}\` to get the real history back.`);
 }
 
 async function restore(): Promise<void> {

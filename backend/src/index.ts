@@ -4,16 +4,46 @@ import cors from "cors";
 import express from "express";
 import { fetchActivities, login } from "./garmin.js";
 import {
+  loadGarminCredentials,
   loadWahooRefreshToken,
   saveActivity,
   saveActivityPower,
   saveDailyMetrics,
+  saveGarminCredentials,
   saveWahooRefreshToken,
 } from "./persist.js";
 import { supabase } from "./supabase.js";
 import type { MatchTarget } from "./wahoo.js";
 import { fetchWorkouts, matchWorkouts, refreshAccessToken } from "./wahoo.js";
 import { addDays, fetchDailyMetrics, toCalendarDate } from "./wellness.js";
+
+// Express's Request has no notion of "the signed-in user" out of the box;
+// `requireUser` is what attaches one.
+interface AuthedRequest extends express.Request {
+  userId: string;
+}
+
+/**
+ * Every route below acts on one person's data, so every route runs behind
+ * this: it trusts nothing about who's asking beyond what Supabase Auth says
+ * about the bearer token, and hands the verified user id to the route as
+ * `req.userId` rather than routes trusting a client-supplied one.
+ */
+async function requireUser(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    res.status(401).json({ error: "Missing bearer token" });
+    return;
+  }
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) {
+    res.status(401).json({ error: "Invalid or expired session" });
+    return;
+  }
+  (req as AuthedRequest).userId = data.user.id;
+  next();
+}
 
 // Today's step count is still growing, and last night's resting heart rate and
 // HRV can land hours after the watch syncs, so a sync always refetches the tail
@@ -35,10 +65,11 @@ const WAKING_HR_RECOMPUTE_DAYS = 2;
  * same span. Days Garmin has nothing for are skipped on write, so the empty
  * stretch before the watch existed is walked once and never again.
  */
-async function dailyMetricsStartDate(): Promise<Date> {
+async function dailyMetricsStartDate(userId: string): Promise<Date> {
   const { data: latest, error: latestError } = await supabase
     .from("daily_metrics")
     .select("calendar_date")
+    .eq("user_id", userId)
     .order("calendar_date", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -51,6 +82,7 @@ async function dailyMetricsStartDate(): Promise<Date> {
   const { data: earliest, error: earliestError } = await supabase
     .from("activities")
     .select("start_time")
+    .eq("user_id", userId)
     .order("start_time", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -66,10 +98,11 @@ async function dailyMetricsStartDate(): Promise<Date> {
  * so a week between syncs still fills its gap, and a settled day is never paid
  * for twice.
  */
-async function wakingHrDates(from: Date, to: Date): Promise<Set<string>> {
+async function wakingHrDates(userId: string, from: Date, to: Date): Promise<Set<string>> {
   const { data, error } = await supabase
     .from("daily_metrics")
     .select("calendar_date")
+    .eq("user_id", userId)
     .gte("calendar_date", toCalendarDate(from))
     .lte("calendar_date", toCalendarDate(to))
     .not("waking_avg_hr", "is", null);
@@ -95,26 +128,25 @@ async function wakingHrDates(from: Date, to: Date): Promise<Set<string>> {
  * Runs after the Garmin sync on purpose: an activity recorded minutes ago has
  * to exist as a row before there is anything for its watts to attach to.
  */
-async function syncWahooPower(): Promise<number | null> {
+async function syncWahooPower(userId: string): Promise<number | null> {
   const clientId = process.env.WAHOO_CLIENT_ID;
   const clientSecret = process.env.WAHOO_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
 
-  const storedToken = await loadWahooRefreshToken();
-  if (!storedToken) {
-    throw new Error("No Wahoo refresh token stored. Run `npm run wahoo:auth` in backend/.");
-  }
+  const storedToken = await loadWahooRefreshToken(userId);
+  if (!storedToken) return null;
 
   const { accessToken, refreshToken } = await refreshAccessToken(clientId, clientSecret, storedToken);
   // Before the first API call, never after: Wahoo only retires the old token
   // once the new one is used, so a crash here is recoverable and a crash after
   // a successful call would not be.
-  await saveWahooRefreshToken(refreshToken);
+  await saveWahooRefreshToken(userId, refreshToken);
 
   // The newest activity already carrying power is where the last run got to.
   const { data: newestMatched, error: matchedError } = await supabase
     .from("activities")
     .select("start_time")
+    .eq("user_id", userId)
     .not("wahoo_workout_id", "is", null)
     .order("start_time", { ascending: false })
     .limit(1)
@@ -128,6 +160,7 @@ async function syncWahooPower(): Promise<number | null> {
   let query = supabase
     .from("activities")
     .select("id, start_time, duration_s")
+    .eq("user_id", userId)
     .is("wahoo_workout_id", null);
   if (since) query = query.gte("start_time", since.toISOString());
   const { data: candidates, error: candidatesError } = await query;
@@ -147,43 +180,45 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/sync", async (_req, res) => {
-  const email = process.env.GARMIN_EMAIL;
-  const password = process.env.GARMIN_PASSWORD;
-  if (!email || !password) {
-    res.status(500).json({ error: "Missing GARMIN_EMAIL/GARMIN_PASSWORD in environment" });
+app.post("/api/sync", requireUser, async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+
+  const credentials = await loadGarminCredentials(userId);
+  if (!credentials) {
+    res.status(400).json({ error: "Connect your Garmin account first." });
     return;
   }
 
   try {
     const { data: existing, error: fetchError } = await supabase
       .from("activities")
-      .select("garmin_activity_id");
+      .select("garmin_activity_id")
+      .eq("user_id", userId);
     if (fetchError) throw fetchError;
 
     const knownIds = new Set((existing ?? []).map((row) => row.garmin_activity_id as number));
 
-    const gc = await login(email, password);
+    const gc = await login(credentials.email, credentials.password);
     const synced = await fetchActivities(gc, {
       shouldFetch: (garminActivityId) => !knownIds.has(garminActivityId),
       stopWhenPageFullyKnown: true,
       onProgress: (message) => console.log(message),
       onActivity: async (activity, streams) => {
-        await saveActivity(activity, streams);
+        await saveActivity(activity, streams, userId);
         knownIds.add(activity.garmin_activity_id);
       },
     });
 
-    const from = await dailyMetricsStartDate();
+    const from = await dailyMetricsStartDate(userId);
     const to = new Date();
     const metrics = await fetchDailyMetrics(
       gc,
       from,
       to,
       (message) => console.log(message),
-      await wakingHrDates(from, to),
+      await wakingHrDates(userId, from, to),
     );
-    await saveDailyMetrics(metrics);
+    await saveDailyMetrics(metrics, userId);
     console.log(`${metrics.length} days of wellness data from ${toCalendarDate(from)}`);
 
     // Wahoo is a second, optional source. A failure there shouldn't fail a
@@ -192,7 +227,7 @@ app.post("/api/sync", async (_req, res) => {
     let power: number | null = null;
     let wahooError: string | null = null;
     try {
-      power = await syncWahooPower();
+      power = await syncWahooPower(userId);
     } catch (err) {
       wahooError = err instanceof Error ? err.message : "Wahoo sync failed";
       console.error("Wahoo sync failed:", err);
@@ -202,6 +237,29 @@ app.post("/api/sync", async (_req, res) => {
   } catch (err) {
     console.error("Sync failed:", err);
     res.status(500).json({ error: err instanceof Error ? err.message : "Sync failed" });
+  }
+});
+
+app.post("/api/garmin-credentials", requireUser, async (req, res) => {
+  const { email, password } = req.body ?? {};
+  if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+    res.status(400).json({ error: "email and password are required" });
+    return;
+  }
+  try {
+    await saveGarminCredentials((req as AuthedRequest).userId, email, password);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to save credentials" });
+  }
+});
+
+app.get("/api/garmin-credentials", requireUser, async (req, res) => {
+  try {
+    const credentials = await loadGarminCredentials((req as AuthedRequest).userId);
+    res.json({ connected: credentials !== null, email: credentials?.email ?? null });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load credentials" });
   }
 });
 

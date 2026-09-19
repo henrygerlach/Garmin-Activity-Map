@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+process.env.CREDENTIALS_ENCRYPTION_KEY = "0".repeat(64);
+
 const upsert = vi.fn();
 const select = vi.fn();
 const single = vi.fn();
@@ -34,11 +36,11 @@ describe("saveActivity", () => {
 
     const activity = { garmin_activity_id: 42 } as any;
     const streams = { t_s: [0, 1] } as any;
-    await saveActivity(activity, streams);
+    await saveActivity(activity, streams, "user-1");
 
-    expect(upsert).toHaveBeenCalledWith(activity, { onConflict: "garmin_activity_id" });
+    expect(upsert).toHaveBeenCalledWith({ garmin_activity_id: 42, user_id: "user-1" }, { onConflict: "garmin_activity_id" });
     expect(streamsUpsert).toHaveBeenCalledWith(
-      { activity_id: "uuid-1", garmin_activity_id: 42, t_s: [0, 1] },
+      { activity_id: "uuid-1", garmin_activity_id: 42, user_id: "user-1", t_s: [0, 1] },
       { onConflict: "activity_id" },
     );
   });
@@ -50,7 +52,7 @@ describe("saveActivity", () => {
       throw new Error(`unexpected table ${table}`);
     });
 
-    await saveActivity({ garmin_activity_id: 1 } as any, null);
+    await saveActivity({ garmin_activity_id: 1 } as any, null, "user-1");
     expect(from).toHaveBeenCalledTimes(1);
   });
 
@@ -58,7 +60,7 @@ describe("saveActivity", () => {
     single.mockResolvedValue({ data: null, error: new Error("boom") });
     from.mockImplementation(() => activitiesTable());
 
-    await expect(saveActivity({ garmin_activity_id: 1 } as any, null)).rejects.toThrow("boom");
+    await expect(saveActivity({ garmin_activity_id: 1 } as any, null, "user-1")).rejects.toThrow("boom");
   });
 
   it("throws when the streams upsert fails", async () => {
@@ -66,30 +68,34 @@ describe("saveActivity", () => {
     const streamsUpsert = vi.fn().mockResolvedValue({ error: new Error("streams boom") });
     from.mockImplementation((table: string) => (table === "activities" ? activitiesTable() : { upsert: streamsUpsert }));
 
-    await expect(saveActivity({ garmin_activity_id: 1 } as any, { t_s: [] } as any)).rejects.toThrow("streams boom");
+    await expect(saveActivity({ garmin_activity_id: 1 } as any, { t_s: [] } as any, "user-1")).rejects.toThrow(
+      "streams boom",
+    );
   });
 });
 
 describe("saveDailyMetrics", () => {
   it("does nothing for an empty list", async () => {
-    await saveDailyMetrics([]);
+    await saveDailyMetrics([], "user-1");
     expect(from).not.toHaveBeenCalled();
   });
 
-  it("upserts metrics keyed by calendar date", async () => {
+  it("upserts metrics keyed by user and calendar date", async () => {
     const metricsUpsert = vi.fn().mockResolvedValue({ error: null });
     from.mockImplementation(() => ({ upsert: metricsUpsert }));
 
-    await saveDailyMetrics([{ calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: 70 }] as any);
+    await saveDailyMetrics([{ calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: 70 }] as any, "user-1");
 
     expect(from).toHaveBeenCalledWith("daily_metrics");
-    expect(metricsUpsert).toHaveBeenNthCalledWith(1, [{ calendar_date: "2026-01-01", total_steps: 10 }], {
-      onConflict: "calendar_date",
-    });
+    expect(metricsUpsert).toHaveBeenNthCalledWith(
+      1,
+      [{ calendar_date: "2026-01-01", total_steps: 10, user_id: "user-1" }],
+      { onConflict: "user_id,calendar_date" },
+    );
     expect(metricsUpsert).toHaveBeenNthCalledWith(
       2,
-      [{ calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: 70 }],
-      { onConflict: "calendar_date" },
+      [{ calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: 70, user_id: "user-1" }],
+      { onConflict: "user_id,calendar_date" },
     );
   });
 
@@ -97,23 +103,26 @@ describe("saveDailyMetrics", () => {
     const metricsUpsert = vi.fn().mockResolvedValue({ error: null });
     from.mockImplementation(() => ({ upsert: metricsUpsert }));
 
-    await saveDailyMetrics([
-      { calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: null },
-      { calendar_date: "2026-01-02", total_steps: 20, waking_avg_hr: 70 },
-    ] as any);
+    await saveDailyMetrics(
+      [
+        { calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: null },
+        { calendar_date: "2026-01-02", total_steps: 20, waking_avg_hr: 70 },
+      ] as any,
+      "user-1",
+    );
 
     // The day with no answer appears only in the write that omits the column.
     expect(metricsUpsert.mock.calls[0][0]).toEqual([
-      { calendar_date: "2026-01-01", total_steps: 10 },
-      { calendar_date: "2026-01-02", total_steps: 20 },
+      { calendar_date: "2026-01-01", total_steps: 10, user_id: "user-1" },
+      { calendar_date: "2026-01-02", total_steps: 20, user_id: "user-1" },
     ]);
     expect(metricsUpsert.mock.calls[1][0]).toEqual([
-      { calendar_date: "2026-01-02", total_steps: 20, waking_avg_hr: 70 },
+      { calendar_date: "2026-01-02", total_steps: 20, waking_avg_hr: 70, user_id: "user-1" },
     ]);
   });
 
   it("throws when the upsert fails", async () => {
     from.mockImplementation(() => ({ upsert: vi.fn().mockResolvedValue({ error: new Error("nope") }) }));
-    await expect(saveDailyMetrics([{ calendar_date: "2026-01-01" }] as any)).rejects.toThrow("nope");
+    await expect(saveDailyMetrics([{ calendar_date: "2026-01-01" }] as any, "user-1")).rejects.toThrow("nope");
   });
 });

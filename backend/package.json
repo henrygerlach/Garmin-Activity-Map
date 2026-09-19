@@ -9,6 +9,7 @@
     "backfill": "tsx src/backfill.ts",
     "snap-routes": "tsx src/snapRoutes.ts",
     "wahoo:auth": "tsx src/wahooAuth.ts",
+    "claim-data": "tsx src/claimData.ts",
     "seed:demo": "tsx src/seed.ts",
     "seed:restore": "tsx src/seed.ts --restore",
     "typecheck": "tsc --noEmit",

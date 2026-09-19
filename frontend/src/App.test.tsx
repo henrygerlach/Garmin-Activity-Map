@@ -8,12 +8,24 @@ const select = vi.fn(() => ({ order }));
 // Typed with the table name it is called with, so assertions below can read
 // `from.mock.calls[n][0]` and get a string rather than an empty tuple.
 const from = vi.fn((_table: string) => ({ select }));
-vi.mock("./lib/supabase", () => ({ supabase: { from: (table: string) => from(table) } }));
+const session = { access_token: "token", user: { id: "user-1", email: "person@example.com" } };
+const getSession = vi.fn(() => Promise.resolve({ data: { session } }));
+const onAuthStateChange = vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } }));
+vi.mock("./lib/supabase", () => ({
+  supabase: {
+    from: (table: string) => from(table),
+    auth: { getSession: () => getSession(), onAuthStateChange, signOut: vi.fn() },
+  },
+}));
 
 vi.mock("./components/MapView", () => ({
   MapView: ({ activities, selectedId }: { activities: unknown[]; selectedId: string | null }) => (
     <div data-testid="map-view">{activities.length} activities, selected {selectedId ?? "none"}</div>
   ),
+}));
+
+vi.mock("./components/GarminConnect", () => ({
+  GarminConnect: () => <div data-testid="garmin-connect" />,
 }));
 
 const { default: App } = await import("./App");

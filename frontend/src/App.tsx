@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import { ActivityTable } from "./components/ActivityTable";
+import { GarminConnect } from "./components/GarminConnect";
+import { Login } from "./components/Login";
 import { MapView } from "./components/MapView";
 import { StatsView } from "./components/StatsView";
 import { UpdateButton } from "./components/UpdateButton";
+import { useAuth } from "./lib/useAuth";
 import { supabase } from "./lib/supabase";
 import type { Activity, DailyMetric } from "./types";
 
@@ -17,6 +20,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 function App() {
+  const { session, loading: authLoading } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [dailyMetrics, setDailyMetrics] = useState<DailyMetric[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -43,20 +47,29 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!session) return;
     loadActivities().finally(() => setLoading(false));
-  }, [loadActivities]);
+  }, [session, loadActivities]);
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
     setActiveTab("map");
   }, []);
 
+  if (authLoading) return null;
+  if (!session) return <Login />;
+
   return (
     <div className="app">
       <aside className={sidebarVisible ? "sidebar" : "sidebar sidebar--hidden"} id="activity-sidebar">
         <header className="sidebar__header">
           <h1>Garmin Activity Map</h1>
-          <UpdateButton apiBaseUrl={API_BASE_URL} onSynced={loadActivities} onSyncError={setSyncError} />
+          <UpdateButton
+            apiBaseUrl={API_BASE_URL}
+            accessToken={session.access_token}
+            onSynced={loadActivities}
+            onSyncError={setSyncError}
+          />
         </header>
         {/* role="alert" so a failure is announced, not only drawn — this is the
             one thing in the app that can silently go wrong. */}
@@ -138,6 +151,15 @@ function App() {
               {label}
             </button>
           ))}
+          <div className="tabs__account">
+            <GarminConnect apiBaseUrl={API_BASE_URL} accessToken={session.access_token} />
+            <span className="tabs__email" title={session.user.email}>
+              {session.user.email}
+            </span>
+            <button type="button" className="garmin-connect__link" onClick={() => supabase.auth.signOut()}>
+              Sign out
+            </button>
+          </div>
         </nav>
         <div className="content-pane__body" id="view-panel" role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
           {activeTab === "map" ? (

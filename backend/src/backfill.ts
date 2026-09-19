@@ -1,7 +1,7 @@
 import "./env.js";
 
 import { fetchActivities, login } from "./garmin.js";
-import { saveActivity } from "./persist.js";
+import { loadGarminCredentials, saveActivity } from "./persist.js";
 import { supabase } from "./supabase.js";
 
 /**
@@ -14,29 +14,33 @@ import { supabase } from "./supabase.js";
  * already exists and the whole history has to be walked.
  *
  * Safe to re-run — it skips whatever already has streams, so an interrupted or
- * rate-limited run resumes where it left off. Usage: `npm run backfill`.
+ * rate-limited run resumes where it left off. Usage: `npm run backfill -- <user-id>`,
+ * where `<user-id>` is the account's id from Supabase Studio > Authentication.
  */
 async function main(): Promise<void> {
-  const email = process.env.GARMIN_EMAIL;
-  const password = process.env.GARMIN_PASSWORD;
-  if (!email || !password) {
-    throw new Error("Missing GARMIN_EMAIL/GARMIN_PASSWORD in environment");
-  }
+  const userId = process.argv[2];
+  if (!userId) throw new Error("Usage: npm run backfill -- <user-id>");
 
-  const { data: done, error } = await supabase.from("activity_streams").select("garmin_activity_id");
+  const credentials = await loadGarminCredentials(userId);
+  if (!credentials) throw new Error(`No Garmin credentials stored for ${userId} — connect Garmin in the app first.`);
+
+  const { data: done, error } = await supabase
+    .from("activity_streams")
+    .select("garmin_activity_id")
+    .eq("user_id", userId);
   if (error) throw error;
 
   const alreadyBackfilled = new Set((done ?? []).map((row) => row.garmin_activity_id as number));
   console.log(`${alreadyBackfilled.size} activities already have streams; fetching the rest.`);
 
   let count = 0;
-  const gc = await login(email, password);
+  const gc = await login(credentials.email, credentials.password);
   const synced = await fetchActivities(gc, {
     shouldFetch: (garminActivityId) => !alreadyBackfilled.has(garminActivityId),
     stopWhenPageFullyKnown: false,
     onProgress: (message) => console.log(`[${++count}] ${message}`),
     onActivity: async (activity, streams) => {
-      await saveActivity(activity, streams);
+      await saveActivity(activity, streams, userId);
       if (!streams) console.warn(`  no sensor data available for ${activity.garmin_activity_id}`);
     },
   });

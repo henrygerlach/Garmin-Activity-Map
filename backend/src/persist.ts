@@ -1,3 +1,4 @@
+import { decrypt, encrypt } from "./crypto.js";
 import type { ActivityStreams, NormalizedActivity } from "./garmin.js";
 import type { Match } from "./wahoo.js";
 import type { DailyMetric } from "./wellness.js";
@@ -11,10 +12,11 @@ import { supabase } from "./supabase.js";
 export async function saveActivity(
   activity: NormalizedActivity,
   streams: ActivityStreams | null,
+  userId: string,
 ): Promise<void> {
   const { data, error } = await supabase
     .from("activities")
-    .upsert(activity, { onConflict: "garmin_activity_id" })
+    .upsert({ ...activity, user_id: userId }, { onConflict: "garmin_activity_id" })
     .select("id")
     .single();
   if (error) throw error;
@@ -25,6 +27,7 @@ export async function saveActivity(
     {
       activity_id: data.id,
       garmin_activity_id: activity.garmin_activity_id,
+      user_id: userId,
       ...streams,
     },
     { onConflict: "activity_id" },
@@ -57,21 +60,25 @@ export async function saveActivityPower(matches: Match[]): Promise<void> {
   }
 }
 
-/** The stored Wahoo refresh token, or null before the first authorisation. */
-export async function loadWahooRefreshToken(): Promise<string | null> {
+/** A user's stored Wahoo refresh token, or null before they've authorised one. */
+export async function loadWahooRefreshToken(userId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from("wahoo_tokens")
     .select("refresh_token")
+    .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
   return (data?.refresh_token as string) ?? null;
 }
 
-/** Replaces the stored refresh token with the one Wahoo issued in its place. */
-export async function saveWahooRefreshToken(refreshToken: string): Promise<void> {
+/** Replaces a user's stored refresh token with the one Wahoo issued in its place. */
+export async function saveWahooRefreshToken(userId: string, refreshToken: string): Promise<void> {
   const { error } = await supabase
     .from("wahoo_tokens")
-    .upsert({ id: true, refresh_token: refreshToken, updated_at: new Date().toISOString() });
+    .upsert(
+      { user_id: userId, refresh_token: refreshToken, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" },
+    );
   if (error) throw error;
 }
 
@@ -83,14 +90,14 @@ export async function saveWahooRefreshToken(refreshToken: string): Promise<void>
  * days it holds no answer for, and the second writes the days it does. Sending
  * every row at once would overwrite a settled day's value with null.
  */
-export async function saveDailyMetrics(metrics: DailyMetric[]): Promise<void> {
+export async function saveDailyMetrics(metrics: DailyMetric[], userId: string): Promise<void> {
   if (metrics.length === 0) return;
 
   const { error } = await supabase
     .from("daily_metrics")
     .upsert(
-      metrics.map(({ waking_avg_hr: _waking, ...rest }) => rest),
-      { onConflict: "calendar_date" },
+      metrics.map(({ waking_avg_hr: _waking, ...rest }) => ({ ...rest, user_id: userId })),
+      { onConflict: "user_id,calendar_date" },
     );
   if (error) throw error;
 
@@ -99,6 +106,40 @@ export async function saveDailyMetrics(metrics: DailyMetric[]): Promise<void> {
 
   const { error: wakingError } = await supabase
     .from("daily_metrics")
-    .upsert(derived, { onConflict: "calendar_date" });
+    .upsert(
+      derived.map((metric) => ({ ...metric, user_id: userId })),
+      { onConflict: "user_id,calendar_date" },
+    );
   if (wakingError) throw wakingError;
+}
+
+export interface GarminCredentials {
+  email: string;
+  password: string;
+}
+
+/** A user's stored Garmin login, decrypted, or null before they've connected one. */
+export async function loadGarminCredentials(userId: string): Promise<GarminCredentials | null> {
+  const { data, error } = await supabase
+    .from("garmin_credentials")
+    .select("email, encrypted_password")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { email: data.email as string, password: decrypt(data.encrypted_password as string) };
+}
+
+/** Replaces a user's stored Garmin login with the one they just submitted. */
+export async function saveGarminCredentials(userId: string, email: string, password: string): Promise<void> {
+  const { error } = await supabase.from("garmin_credentials").upsert(
+    {
+      user_id: userId,
+      email,
+      encrypted_password: encrypt(password),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+  if (error) throw error;
 }

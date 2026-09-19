@@ -716,6 +716,233 @@
   margin-top: 3px;
 }
 
+/* ── Auth ────────────────────────────────────────────────────────────────── */
+
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100dvh;
+  width: 100%;
+  background: var(--paper);
+}
+
+/* Built like the app's other instrument panels (.chart-group, .stat-panel):
+   a bordered case, no drop shadow, an engraved strip for the panel's own
+   state — rather than a generic centred white-card login form. */
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 340px;
+  padding-bottom: 20px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  background: var(--case);
+  overflow: hidden;
+}
+
+.login-panel__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 24px 0;
+  align-self: flex-start;
+}
+
+.login-panel__name {
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Same treatment as .chart-group__title: a recessed strip naming the panel's
+   current state, which here is real — it is the only place mode is shown. */
+.login-panel__mode {
+  align-self: stretch;
+  margin: 0;
+  padding: 8px 24px;
+  background: var(--case-sunk);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 0 24px;
+}
+
+.login-form .error-banner {
+  margin: 0;
+  border-bottom: none;
+  border-radius: var(--r-sm);
+}
+
+.login-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-form__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-small);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--graphite);
+}
+
+.login-form__field input {
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-family: var(--font-body);
+}
+
+.login-form__submit {
+  padding: 8px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.login-form__submit:hover:not(:disabled) {
+  background: #fff;
+}
+
+.login-form__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.login-form__switch {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--t-small);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.login-form__switch:hover {
+  color: var(--ink);
+}
+
+/* ── Account bar ─────────────────────────────────────────────────────────── */
+/* Sits at the trailing end of the tab strip: who's signed in, and whether
+   their own Garmin account is hooked up yet. margin-left: auto is what pushes
+   it there — the same device .map-toolbar__toggle uses in the bar below. */
+
+.tabs__account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
+.tabs__email {
+  max-width: 160px;
+  overflow: hidden;
+  font-size: var(--t-small);
+  color: var(--graphite);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The Garmin account's own email runs into the same problem, in a narrower
+   slot next to it. */
+.tabs__account .update-status {
+  max-width: 140px;
+  overflow: hidden;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.garmin-connect {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A status light, not a bare hyperlink — the same instrument-panel idiom the
+   rest of the app uses for state (the timelapse readout, the active tab). */
+.garmin-connect__dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--graphite-2);
+}
+
+.garmin-connect__dot--on {
+  background: var(--bike);
+}
+
+.garmin-connect--editing {
+  flex-wrap: wrap;
+}
+
+.garmin-connect--editing input {
+  padding: 6px 9px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--t-base);
+  font-family: var(--font-body);
+}
+
+.garmin-connect--editing button[type="submit"] {
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--t-small);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.garmin-connect__link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--t-small);
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.garmin-connect__link:hover {
+  color: var(--ink);
+}
+
 /* ── Sync control ────────────────────────────────────────────────────────── */
 
 .update-control {
@@ -1002,6 +1229,13 @@
 
   .tabs {
     padding: 0 16px;
+  }
+
+  /* The address is the one part of the account group that isn't a control —
+     dropped first so the tab strip keeps Map/Statistics and Sign out
+     reachable at this width instead of wrapping. */
+  .tabs__email {
+    display: none;
   }
 
   .stats-view {
