@@ -129,6 +129,34 @@ describe("fetchDailyMetrics", () => {
     expect(gc.client.get.mock.calls.some(([url]: [string]) => url.includes("dailySleepData"))).toBe(false);
   });
 
+  it("asks for heart-rate samples only on the days the caller listed", async () => {
+    const gc = makeGc({
+      socialProfile: { displayName: "walker" },
+      "/stats/steps/daily/": [
+        { calendarDate: "2026-01-01", totalSteps: 1000 },
+        { calendarDate: "2026-01-02", totalSteps: 2000 },
+      ],
+      "/stats/heartRate/daily/": [],
+      "/hrv-service/hrv/daily/": "",
+      dailyHeartRate: { heartRateValues: null },
+    });
+
+    const metrics = await fetchDailyMetrics(
+      gc,
+      new Date(2026, 0, 1),
+      new Date(2026, 0, 2),
+      undefined,
+      new Set(["2026-01-02"]),
+    );
+
+    // Both days are still stored — the filter only governs the per-day calls.
+    expect(metrics.map((m) => m.calendar_date)).toEqual(["2026-01-01", "2026-01-02"]);
+    const sampleCalls = gc.client.get.mock.calls
+      .map(([url]: [string]) => url)
+      .filter((url: string) => url.includes("dailyHeartRate"));
+    expect(sampleCalls).toEqual(["https://connectapi.garmin.com/wellness-service/wellness/dailyHeartRate?date=2026-01-02"]);
+  });
+
   it("chunks ranges longer than 28 days and reports progress", async () => {
     const onProgress = vi.fn();
     const gc = makeGc({

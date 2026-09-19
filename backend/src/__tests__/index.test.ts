@@ -40,6 +40,9 @@ const fromMock = vi.fn((table: string) => {
     select: () => builder,
     order: () => builder,
     limit: () => builder,
+    gte: () => builder,
+    lte: () => builder,
+    not: () => builder,
     maybeSingle: async () => result,
     then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) =>
       Promise.resolve(result).then(resolve, reject),
@@ -115,6 +118,41 @@ describe("POST /api/sync", () => {
       { calendar_date: "2026-01-01" },
       { calendar_date: "2026-01-02" },
     ]);
+  });
+
+  it("only derives the waking heart rate for unstored days and the last two", async () => {
+    process.env.GARMIN_EMAIL = "me@example.com";
+    process.env.GARMIN_PASSWORD = "hunter2";
+
+    // Built with the same arithmetic as the route, so the keys line up in any
+    // timezone: local midnights for the window it walks, timestamps for the
+    // two trailing days it always redoes.
+    const cal = (date: Date) => date.toISOString().slice(0, 10);
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    const windowKeys = new Set<string>();
+    for (let back = 7; back >= 0; back--) windowKeys.add(cal(addDaysMock(midnight, -back)));
+    const trailing = [cal(new Date()), cal(addDaysMock(new Date(), -1))];
+    const gap = cal(addDaysMock(midnight, -4));
+
+    const pad = (n: number) => String(n).padStart(2, "0");
+    tableResults = {
+      activities: [{ data: [], error: null }],
+      daily_metrics: [
+        { data: { calendar_date: `${midnight.getFullYear()}-${pad(midnight.getMonth() + 1)}-${pad(midnight.getDate())}` }, error: null },
+        { data: [...windowKeys].filter((key) => key !== gap).map((key) => ({ calendar_date: key })), error: null },
+      ],
+    };
+    loginMock.mockResolvedValue({ id: "gc" });
+    fetchActivitiesMock.mockResolvedValue(0);
+    fetchDailyMetricsMock.mockResolvedValue([]);
+    saveDailyMetricsMock.mockResolvedValue(undefined);
+
+    const { status } = await request("/api/sync", { method: "POST" });
+
+    expect(status).toBe(200);
+    const dates: Set<string> = fetchDailyMetricsMock.mock.calls[0][4];
+    expect([...dates].sort()).toEqual([...new Set([gap, ...trailing])].sort());
   });
 
   it("falls back to the earliest activity's date when there are no daily_metrics yet", async () => {

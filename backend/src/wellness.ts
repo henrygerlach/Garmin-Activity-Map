@@ -16,7 +16,9 @@ const GC_API_BASE = "https://connectapi.garmin.com";
 // between StartDate and EndDate cannot be more than 28 days". The HRV service
 // accepts more, but it goes in the same windows so the three stay aligned.
 const CHUNK_DAYS = 28;
-const REQUEST_DELAY_MS = 300;
+// Politeness, not a documented limit. Each call takes 200-600ms anyway, so
+// this holds the real rate near 2-3/s; raise it if Garmin ever answers 429.
+const REQUEST_DELAY_MS = 100;
 
 export interface DailyMetric {
   /** `YYYY-MM-DD`, the watch's calendar day. */
@@ -105,12 +107,18 @@ export function addDays(date: Date, days: number): Date {
  * Days Garmin knows nothing about are dropped rather than stored as a row of
  * nulls: the watch predates none of the activity history, so the early years
  * would otherwise fill the table with empty rows that say only "no watch yet".
+ *
+ * `wakingHrDates`, when given, limits the per-day waking heart rate pass to
+ * those calendar dates — the caller knows which days still need one, and the
+ * days it leaves out are the bulk of a routine sync's requests. Omitted, every
+ * day in range is derived.
  */
 export async function fetchDailyMetrics(
   gc: GarminConnect,
   start: Date,
   end: Date,
   onProgress?: (message: string) => void,
+  wakingHrDates?: Set<string>,
 ): Promise<DailyMetric[]> {
   const byDate = new Map<string, DailyMetric>();
 
@@ -192,6 +200,7 @@ export async function fetchDailyMetrics(
     for (let day = new Date(from); day <= to; day = addDays(day, 1)) {
       const key = toCalendarDate(day);
       if (!byDate.has(key)) continue;
+      if (wakingHrDates && !wakingHrDates.has(key)) continue;
       const daily = await gc.client.get<DailyHeartRate>(
         `${GC_API_BASE}/wellness-service/wellness/dailyHeartRate?date=${key}`,
       );

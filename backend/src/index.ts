@@ -22,6 +22,12 @@ const DAILY_METRICS_OVERLAP_DAYS = 7;
 // How far back the first sync reaches when the table is empty and there are no
 // activities to date it from.
 const DAILY_METRICS_MAX_HISTORY_DAYS = 730;
+// How many days back the waking heart rate is re-derived. It is the one
+// wellness figure with no range endpoint — a day costs a samples call plus two
+// sleep calls — so re-deriving the whole overlap window is most of a sync's
+// wall clock. Today is still growing and yesterday's samples can land late;
+// beyond that a day only changes if it was never stored.
+const WAKING_HR_RECOMPUTE_DAYS = 2;
 
 /**
  * The day to start fetching wellness data from: just behind what's stored, or
@@ -52,6 +58,33 @@ async function dailyMetricsStartDate(): Promise<Date> {
   return earliest
     ? new Date(earliest.start_time as string)
     : addDays(new Date(), -DAILY_METRICS_MAX_HISTORY_DAYS);
+}
+
+/**
+ * The days in `[from, to]` whose waking heart rate is worth deriving: the last
+ * couple, which are still filling in, and any the table has no value for yet —
+ * so a week between syncs still fills its gap, and a settled day is never paid
+ * for twice.
+ */
+async function wakingHrDates(from: Date, to: Date): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("daily_metrics")
+    .select("calendar_date")
+    .gte("calendar_date", toCalendarDate(from))
+    .lte("calendar_date", toCalendarDate(to))
+    .not("waking_avg_hr", "is", null);
+  if (error) throw error;
+
+  const stored = new Set((data ?? []).map((row) => row.calendar_date as string));
+  const dates = new Set<string>();
+  for (let day = new Date(from); day <= to; day = addDays(day, 1)) {
+    const key = toCalendarDate(day);
+    if (!stored.has(key)) dates.add(key);
+  }
+  for (let back = 0; back < WAKING_HR_RECOMPUTE_DAYS; back++) {
+    dates.add(toCalendarDate(addDays(to, -back)));
+  }
+  return dates;
 }
 
 /**
@@ -142,7 +175,14 @@ app.post("/api/sync", async (_req, res) => {
     });
 
     const from = await dailyMetricsStartDate();
-    const metrics = await fetchDailyMetrics(gc, from, new Date(), (message) => console.log(message));
+    const to = new Date();
+    const metrics = await fetchDailyMetrics(
+      gc,
+      from,
+      to,
+      (message) => console.log(message),
+      await wakingHrDates(from, to),
+    );
     await saveDailyMetrics(metrics);
     console.log(`${metrics.length} days of wellness data from ${toCalendarDate(from)}`);
 
