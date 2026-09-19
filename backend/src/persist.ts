@@ -75,11 +75,30 @@ export async function saveWahooRefreshToken(refreshToken: string): Promise<void>
   if (error) throw error;
 }
 
-/** Upserts a run of daily wellness rows, keyed by their calendar date. */
+/**
+ * Upserts a run of daily wellness rows, keyed by their calendar date.
+ *
+ * Two writes, because a sync derives `waking_avg_hr` for only the last day or
+ * two: the first omits that column so PostgREST leaves it untouched on the
+ * days it holds no answer for, and the second writes the days it does. Sending
+ * every row at once would overwrite a settled day's value with null.
+ */
 export async function saveDailyMetrics(metrics: DailyMetric[]): Promise<void> {
   if (metrics.length === 0) return;
+
   const { error } = await supabase
     .from("daily_metrics")
-    .upsert(metrics, { onConflict: "calendar_date" });
+    .upsert(
+      metrics.map(({ waking_avg_hr: _waking, ...rest }) => rest),
+      { onConflict: "calendar_date" },
+    );
   if (error) throw error;
+
+  const derived = metrics.filter((metric) => metric.waking_avg_hr !== null);
+  if (derived.length === 0) return;
+
+  const { error: wakingError } = await supabase
+    .from("daily_metrics")
+    .upsert(derived, { onConflict: "calendar_date" });
+  if (wakingError) throw wakingError;
 }

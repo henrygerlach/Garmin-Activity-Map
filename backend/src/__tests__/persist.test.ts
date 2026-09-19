@@ -80,11 +80,36 @@ describe("saveDailyMetrics", () => {
     const metricsUpsert = vi.fn().mockResolvedValue({ error: null });
     from.mockImplementation(() => ({ upsert: metricsUpsert }));
 
-    const metrics = [{ calendar_date: "2026-01-01" }] as any;
-    await saveDailyMetrics(metrics);
+    await saveDailyMetrics([{ calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: 70 }] as any);
 
     expect(from).toHaveBeenCalledWith("daily_metrics");
-    expect(metricsUpsert).toHaveBeenCalledWith(metrics, { onConflict: "calendar_date" });
+    expect(metricsUpsert).toHaveBeenNthCalledWith(1, [{ calendar_date: "2026-01-01", total_steps: 10 }], {
+      onConflict: "calendar_date",
+    });
+    expect(metricsUpsert).toHaveBeenNthCalledWith(
+      2,
+      [{ calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: 70 }],
+      { onConflict: "calendar_date" },
+    );
+  });
+
+  it("leaves a stored waking heart rate alone on days it has none", async () => {
+    const metricsUpsert = vi.fn().mockResolvedValue({ error: null });
+    from.mockImplementation(() => ({ upsert: metricsUpsert }));
+
+    await saveDailyMetrics([
+      { calendar_date: "2026-01-01", total_steps: 10, waking_avg_hr: null },
+      { calendar_date: "2026-01-02", total_steps: 20, waking_avg_hr: 70 },
+    ] as any);
+
+    // The day with no answer appears only in the write that omits the column.
+    expect(metricsUpsert.mock.calls[0][0]).toEqual([
+      { calendar_date: "2026-01-01", total_steps: 10 },
+      { calendar_date: "2026-01-02", total_steps: 20 },
+    ]);
+    expect(metricsUpsert.mock.calls[1][0]).toEqual([
+      { calendar_date: "2026-01-02", total_steps: 20, waking_avg_hr: 70 },
+    ]);
   });
 
   it("throws when the upsert fails", async () => {
