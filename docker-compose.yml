@@ -1,0 +1,42 @@
+# Server deployment. Supabase itself is not in here: it runs through the
+# Supabase CLI (`supabase start` in this directory), exactly as in local dev.
+# These two containers join its Docker network to reach it.
+#
+#   supabase start
+#   docker compose up -d --build
+#
+# The frontend on 127.0.0.1:5173 serves the app and proxies /api and Supabase,
+# so `tailscale serve` exposes the whole thing on one HTTPS port. PUBLIC_URL
+# must be that address, since Vite compiles it into the bundle.
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SUPABASE_URL: http://supabase_kong_Walkies:8000
+      PORT: "8788"
+    volumes:
+      - ./backend/.garmin-tokens:/app/.garmin-tokens
+    networks: [default, supabase]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_SUPABASE_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+        VITE_API_BASE_URL: ${PUBLIC_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_CARTO_API_KEY: ${VITE_CARTO_API_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:5173:80"
+    networks: [default, supabase]
+
+networks:
+  supabase:
+    name: supabase_network_Walkies
+    external: true

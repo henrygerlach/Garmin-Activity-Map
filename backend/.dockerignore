@@ -1,0 +1,4 @@
+node_modules
+coverage
+.garmin-tokens
+.demo-backup*.json
