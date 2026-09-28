@@ -387,12 +387,14 @@ function ActivityPolyline({ activity, isHighlighted, isSelected, onHover, visitI
     <Polyline
       ref={layerRef}
       positions={activity.points}
+      // className rather than `color`: Leaflet writes `color` out as a stroke
+      // presentation attribute, which is not a CSS context, so a var() token
+      // would never resolve there. The class lets App.css own the hue — and
+      // so lets it change with the appearance. A top-level prop, not part of
+      // pathOptions: Leaflet only adds the class when it creates the path, and
+      // react-leaflet hands it pathOptions later, through setStyle.
+      className={`trace trace--${activity.type}`}
       pathOptions={{
-        // className rather than `color`: Leaflet writes `color` out as a stroke
-        // presentation attribute, which is not a CSS context, so a var() token
-        // would never resolve there. The class lets App.css own the hue — and
-        // so lets it change with the appearance.
-        className: `trace trace--${activity.type}`,
         weight: isHighlighted ? 6 : 4,
         opacity: isHighlighted ? 1 : 0.7,
       }}

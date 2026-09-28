@@ -38,6 +38,14 @@ describe("MapView", () => {
     expect(container.querySelectorAll("path.leaflet-interactive")).toHaveLength(1);
   });
 
+  it("tags each track with its activity type so App.css can colour it", () => {
+    const { container } = render(
+      <MapView activities={[walk, bike]} hoveredId={null} onHover={() => {}} selectedId={null} />,
+    );
+    expect(container.querySelector("path.trace.trace--walk")).toBeInTheDocument();
+    expect(container.querySelector("path.trace.trace--bike")).toBeInTheDocument();
+  });
+
   it("filters activities by type via the segmented control", async () => {
     const { container } = render(
       <MapView activities={[walk, bike]} hoveredId={null} onHover={() => {}} selectedId={null} />,
